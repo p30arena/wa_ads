@@ -8,7 +8,8 @@ export type WSEventType =
   | 'whatsapp:status'
   | 'ad:progress'
   | 'ad:complete'
-  | 'ad:error';
+  | 'ad:error'
+  | 'ad:status';
 
 export interface WSMessage {
   type: WSEventType;

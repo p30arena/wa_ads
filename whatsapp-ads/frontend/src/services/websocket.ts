@@ -1,18 +1,6 @@
 import { create } from 'zustand';
 import type { WhatsAppStatus } from '@/types';
-
-type WSEventType = 
-  | 'whatsapp:qr'
-  | 'whatsapp:ready'
-  | 'whatsapp:authenticated'
-  | 'whatsapp:disconnected'
-  | 'ad:status'
-  | 'ad:progress';
-
-interface WSMessage {
-  type: WSEventType;
-  data: any;
-}
+import { WSMessage } from '@/shared/types/websocket';
 
 interface WebSocketStore {
   socket: WebSocket | null;

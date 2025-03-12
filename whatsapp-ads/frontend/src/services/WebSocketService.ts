@@ -1,17 +1,5 @@
+import { WSEventType, WSMessage } from '@/shared/types/websocket';
 import { EventEmitter } from 'events';
-
-export type WSEventType = 
-  | 'whatsapp:qr'
-  | 'whatsapp:ready'
-  | 'whatsapp:authenticated'
-  | 'whatsapp:disconnected'
-  | 'ad:status'
-  | 'ad:progress';
-
-export interface WSMessage {
-  type: WSEventType;
-  data: any;
-}
 
 const debug = (message: string, ...args: any[]) => {
   if (process.env.NODE_ENV === 'development') {

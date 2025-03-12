@@ -10,7 +10,7 @@ export class WhatsAppService extends EventEmitter {
   private rateLimiter: RateLimiterService;
   private isReady: boolean = false;
 
-  constructor(wsManager: WebSocketManager) {
+  constructor(wsManager: WebSocketManager, { currentVersion }: { currentVersion?: string }) {
     super();
     this.wsManager = wsManager;
     this.rateLimiter = new RateLimiterService();
@@ -19,7 +19,8 @@ export class WhatsAppService extends EventEmitter {
       authStrategy: new LocalAuth(),
       puppeteer: {
         args: ['--no-sandbox']
-      }
+      },
+      webVersion: currentVersion ?? "2.2413.51", // retrieve the latest using this url: https://web.whatsapp.com/check-update?version=1&platform=web
     });
 
     // Register this service with the WebSocket manager

@@ -17,27 +17,32 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Create HTTP server for both Express and WebSocket
-const server = createServer();
-
-// Initialize WebSocket Manager
-const wsManager = new WebSocketManager(server);
-
-// Initialize WhatsApp Service
-const whatsappService = new WhatsAppService(wsManager);
-
-// Initialize express-zod-api with minimal config
-const config = createConfig({
-  logger: {
-    level: 'debug',
-    color: true,
-  },
-  cors: true, // Enable CORS, we'll handle specific headers in middleware
-});
-
 // Initialize database and start services
 const startServer = async () => {
   try {
+    const res = await fetch("https://web.whatsapp.com/check-update?version=1&platform=web");
+    //@ts-ignore
+    const { currentVersion } = await res.json();
+    console.log(currentVersion);
+
+    // Create HTTP server for both Express and WebSocket
+    const server = createServer();
+
+    // Initialize WebSocket Manager
+    const wsManager = new WebSocketManager(server);
+
+    // Initialize WhatsApp Service
+    const whatsappService = new WhatsAppService(wsManager, { currentVersion });
+
+    // Initialize express-zod-api with minimal config
+    const config = createConfig({
+      logger: {
+        level: 'debug',
+        color: true,
+      },
+      cors: true, // Enable CORS, we'll handle specific headers in middleware
+    });
+
     // Initialize database
     await AppDataSource.initialize();
     console.log('Database connection established');
