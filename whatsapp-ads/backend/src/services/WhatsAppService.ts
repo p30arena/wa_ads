@@ -1,15 +1,52 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import { Client, LocalAuth, Chat, Contact } from 'whatsapp-web.js';
 import { WebSocketManager } from './WebSocketManager';
 import { RateLimiterService } from './RateLimiterService';
 import { EventEmitter } from 'events';
 import qrcode from 'qrcode-terminal';
+
+interface ExtendedChat extends Chat {
+  participants: Array<{
+    id: { _serialized: string };
+    isAdmin?: boolean;
+    isSuperAdmin?: boolean;
+  }>;
+  description?: string;
+  createdAt: Date;
+  getProfilePicUrl(): Promise<string>;
+}
+
+interface ContactData {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  isMyContact: boolean;
+  profilePicUrl?: string;
+  status?: string;
+}
+
+interface GroupData {
+  id: string;
+  name: string;
+  description?: string;
+  participants: Array<{
+    id: string;
+    name: string;
+    phoneNumber: string;
+    isAdmin: boolean;
+  }>;
+  isAdmin: boolean;
+  profilePicUrl?: string;
+  createdAt: Date;
+}
 
 export class WhatsAppService extends EventEmitter {
   private client: Client;
   private wsManager: WebSocketManager;
   private rateLimiter: RateLimiterService;
   private isReady: boolean = false;
-
+  private currentQRCode: string | null = null;
+  private contacts: Map<string, ContactData> = new Map();
+  private groups: Map<string, GroupData> = new Map();
   constructor(wsManager: WebSocketManager, { currentVersion }: { currentVersion?: string }) {
     super();
     this.wsManager = wsManager;
@@ -29,8 +66,6 @@ export class WhatsAppService extends EventEmitter {
     this.setupEventListeners();
     this.setupRateLimiterEvents();
   }
-
-  private currentQRCode: string | null = null;
 
   private setupRateLimiterEvents() {
     this.rateLimiter.on('cooldown:start', ({ phoneNumber, cooldownUntil }) => {
@@ -76,10 +111,15 @@ export class WhatsAppService extends EventEmitter {
       });
     });
 
-    this.client.on('ready', () => {
+    this.client.on('ready', async () => {
       console.log('[WhatsAppService] WhatsApp client ready');
       this.isReady = true;
       this.currentQRCode = null;
+
+      // Sync contacts and groups when ready
+      await this.syncContacts();
+      await this.syncGroups();
+
       this.wsManager.broadcast('whatsapp:ready', {
         timestamp: new Date(),
         isConnected: true
@@ -98,6 +138,8 @@ export class WhatsAppService extends EventEmitter {
     this.client.on('disconnected', () => {
       console.log('[WhatsAppService] WhatsApp client disconnected');
       this.isReady = false;
+      this.contacts.clear();
+      this.groups.clear();
       // Don't clear QR code on disconnect to avoid flashing
       // this.currentQRCode = null;
       this.wsManager.broadcast('whatsapp:disconnected', {
@@ -105,8 +147,126 @@ export class WhatsAppService extends EventEmitter {
         isConnected: false
       });
     });
+
+    // Listen for contact and group updates
+    this.client.on('contact_changed', async (contact: Contact) => {
+      if (contact.id && contact.id._serialized) {
+        await this.updateContact(contact);
+      }
+    });
+
+    this.client.on('group_join', async (notification) => {
+      await this.syncGroups();
+    });
+
+    this.client.on('group_leave', async (notification) => {
+      await this.syncGroups();
+    });
+
+    this.client.on('group_update', async (notification) => {
+      await this.syncGroups();
+    });
   }
 
+  public async syncContacts(): Promise<number> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      const contacts = await this.client.getContacts();
+      this.contacts.clear();
+
+      for (const contact of contacts) {
+        await this.updateContact(contact);
+      }
+
+      console.log(`[WhatsAppService] Synced ${this.contacts.size} contacts`);
+      return this.contacts.size;
+    } catch (error) {
+      console.error('[WhatsAppService] Error syncing contacts:', error);
+      throw error;
+    }
+  }
+
+  private async updateContact(contact: Contact): Promise<ContactData | undefined> {
+    if (!contact.id || !contact.id._serialized) return;
+
+    const contactData: ContactData = {
+      id: contact.id._serialized,
+      name: contact.name || contact.pushname || contact.number,
+      phoneNumber: contact.number,
+      isMyContact: contact.isMyContact,
+      profilePicUrl: await contact.getProfilePicUrl().catch(() => undefined),
+      // Note: getStatus is not available in the current version, so we'll skip it
+      status: undefined,
+    };
+
+    this.contacts.set(contactData.id, contactData);
+    return contactData;
+  }
+
+  public async getContacts(): Promise<ContactData[]> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    return Array.from(this.contacts.values());
+  }
+
+  public async syncGroups(): Promise<number> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      const chats = await this.client.getChats();
+      const groups = chats.filter(chat => chat.isGroup) as ExtendedChat[];
+      this.groups.clear();
+
+      for (const group of groups) {
+        const participants = await Promise.all(
+          group.participants.map(async (participant) => {
+            const contact = await this.client.getContactById(participant.id._serialized) as Contact;
+            return {
+              id: participant.id._serialized,
+              name: contact.name || contact.pushname || contact.number,
+              phoneNumber: contact.number,
+              isAdmin: participant.isAdmin || participant.isSuperAdmin || false,
+            };
+          })
+        );
+
+        const groupData: GroupData = {
+          id: group.id._serialized,
+          name: group.name,
+          description: group.description,
+          participants,
+          isAdmin: group.participants.find(
+            (p) => p.id._serialized === this.client.info.wid._serialized
+          )?.isAdmin || false,
+          profilePicUrl: await group.getProfilePicUrl().catch(() => undefined),
+          createdAt: group.createdAt,
+        };
+
+        this.groups.set(groupData.id, groupData);
+      }
+
+      console.log(`[WhatsAppService] Synced ${this.groups.size} groups`);
+      return this.groups.size;
+    } catch (error) {
+      console.error('[WhatsAppService] Error syncing groups:', error);
+      throw error;
+    }
+  }
+
+  public async getGroups(): Promise<GroupData[]> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    return Array.from(this.groups.values());
+  }
   public async initialize(): Promise<void> {
     try {
       console.log('[WhatsAppService] Initializing WhatsApp client...');
@@ -189,16 +349,11 @@ export class WhatsAppService extends EventEmitter {
   private formatPhoneNumber(phone: string): string {
     // Remove any non-numeric characters
     const cleaned = phone.replace(/\D/g, '');
-    // Ensure number has country code
+    // Ensure number has country code and WhatsApp suffix
     return cleaned.startsWith('1') ? `${cleaned}@c.us` : `1${cleaned}@c.us`;
   }
 
-  public async getContacts() {
-    if (!this.isReady) {
-      throw new Error('WhatsApp client is not ready');
-    }
-    return await this.client.getContacts();
-  }
+
 
   public async getChats() {
     if (!this.isReady) {
