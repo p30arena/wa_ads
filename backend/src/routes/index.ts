@@ -196,6 +196,29 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             return savedTemplate;
           },
         }),
+        update: e.build({
+          method: 'put',
+          input: z.object({
+            id: z.number(),
+            template: messageTemplateSchema,
+          }),
+          output: messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() }),
+          handler: async ({ input }) => {
+            const templateRepo = AppDataSource.getRepository(MessageTemplate);
+            const template = await templateRepo.findOneBy({ id: input.id });
+            if (!template) {
+              throw new Error('Template not found');
+            }
+            
+            // Update fields
+            template.title = input.template.title;
+            template.messages = input.template.messages;
+            template.updatedAt = new Date();
+            
+            const savedTemplate = await templateRepo.save(template);
+            return savedTemplate;
+          },
+        }),
         delete: e.build({
           method: 'delete',
           input: z.object({

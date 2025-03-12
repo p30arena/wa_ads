@@ -32,13 +32,30 @@ const toast = {
 export default function TemplatesPage() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isUpdateOpen, setIsUpdateOpen] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ title: '', messages: [''] });
+  const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
 
   const { data: templates, isLoading } = useQuery<{items: MessageTemplate[]}, Error>({
     queryKey: ['templates'],
     queryFn: async () => {
       const response = await templateApi.getTemplates();
       return (response.data as any).data;
+    },
+  });
+
+  const updateMutation = useMutation<MessageTemplate, Error, { id: number, template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'> }>({    mutationFn: async ({ id, template }) => {
+      const response = await templateApi.updateTemplate(id, template);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+      setIsUpdateOpen(false);
+      setSelectedTemplate(null);
+      toast.success('Template updated successfully');
+    },
+    onError: () => {
+      toast.error('Failed to update template');
     },
   });
 
@@ -98,6 +115,7 @@ export default function TemplatesPage() {
             <Button>Create New Template</Button>
           </DialogTrigger>
           <DialogContent>
+
             <DialogHeader>
               <DialogTitle>Create New Template</DialogTitle>
             </DialogHeader>
@@ -161,6 +179,84 @@ export default function TemplatesPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={isUpdateOpen} onOpenChange={setIsUpdateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Template</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="text-sm font-medium">Title</label>
+                <Input
+                  value={selectedTemplate?.title ?? ''}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setSelectedTemplate(prev => prev ? { ...prev, title: e.target.value } : null)
+                  }
+                  placeholder="Enter template title"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Messages</label>
+                {selectedTemplate?.messages.map((message, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Textarea
+                      value={message}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                        const newMessages = [...(selectedTemplate?.messages ?? [])];
+                        newMessages[index] = e.target.value;
+                        setSelectedTemplate(prev => prev ? { ...prev, messages: newMessages } : null);
+                      }}
+                      placeholder={`Enter message ${index + 1}`}
+                      rows={3}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      type="button"
+                      onClick={() => {
+                        const newMessages = selectedTemplate.messages.filter((_, i) => i !== index);
+                        setSelectedTemplate(prev => prev ? { ...prev, messages: newMessages.length ? newMessages : [''] } : null);
+                      }}
+                      disabled={selectedTemplate.messages.length === 1}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSelectedTemplate(prev => prev ? {
+                    ...prev,
+                    messages: [...prev.messages, '']
+                  } : null)}
+                >
+                  Add Message
+                </Button>
+              </div>
+              <Button
+                onClick={() => {
+                  if (!selectedTemplate?.title || !selectedTemplate?.messages[0]) {
+                    toast.error('Please fill in all fields');
+                    return;
+                  }
+                  updateMutation.mutate({
+                    id: selectedTemplate.id,
+                    template: {
+                      title: selectedTemplate.title,
+                      messages: selectedTemplate.messages
+                    }
+                  });
+                }}
+                disabled={updateMutation.isPending}
+                className="w-full"
+              >
+                {updateMutation.isPending ? 'Updating...' : 'Update Template'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Table>
@@ -189,14 +285,26 @@ export default function TemplatesPage() {
                 {new Date(template.createdAt).toLocaleDateString()}
               </TableCell>
               <TableCell>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDelete(template.id)}
-                  disabled={deleteMutation.isPending}
-                >
-                  Delete
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTemplate(template);
+                      setIsUpdateOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(template.id)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

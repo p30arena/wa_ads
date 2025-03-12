@@ -36,7 +36,7 @@ export const templateApi = {
   createTemplate: (template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => 
     api.post<MessageTemplate>('/api/templates/create', template),
   updateTemplate: (id: number, template: Partial<MessageTemplate>) => 
-    api.put<MessageTemplate>(`/api/templates/update?id=${id}`, template),
+    api.put<MessageTemplate>(`/api/templates/update`, {id, template}),
   deleteTemplate: (id: number) => api.delete(`/api/templates/delete?id=${id}`),
 };
 
