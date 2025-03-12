@@ -23,7 +23,7 @@ export interface PhoneBookEntry {
 export interface MessageTemplate {
   id: number;
   title: string;
-  content: string;
+  messages: string[];
   createdAt: string;
   updatedAt: string;
 }

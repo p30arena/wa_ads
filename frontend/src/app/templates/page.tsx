@@ -32,7 +32,7 @@ const toast = {
 export default function TemplatesPage() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newTemplate, setNewTemplate] = useState({ title: '', content: '' });
+  const [newTemplate, setNewTemplate] = useState({ title: '', messages: [''] });
 
   const { data: templates, isLoading } = useQuery<{items: MessageTemplate[]}, Error>({
     queryKey: ['templates'],
@@ -50,7 +50,7 @@ export default function TemplatesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
       setIsCreateOpen(false);
-      setNewTemplate({ title: '', content: '' });
+      setNewTemplate({ title: '', messages: [''] });
       toast.success('Template created successfully');
     },
     onError: () => {
@@ -72,7 +72,7 @@ export default function TemplatesPage() {
   });
 
   const handleCreate = () => {
-    if (!newTemplate.title || !newTemplate.content) {
+    if (!newTemplate.title || !newTemplate.messages[0]) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -112,16 +112,44 @@ export default function TemplatesPage() {
                   placeholder="Enter template title"
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium">Content</label>
-                <Textarea
-                  value={newTemplate.content}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setNewTemplate({ ...newTemplate, content: e.target.value })
-                  }
-                  placeholder="Enter template content"
-                  rows={5}
-                />
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Messages</label>
+                {newTemplate.messages.map((message, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Textarea
+                      value={message}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                        const newMessages = [...newTemplate.messages];
+                        newMessages[index] = e.target.value;
+                        setNewTemplate({ ...newTemplate, messages: newMessages });
+                      }}
+                      placeholder={`Enter message ${index + 1}`}
+                      rows={3}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      type="button"
+                      onClick={() => {
+                        const newMessages = newTemplate.messages.filter((_, i) => i !== index);
+                        setNewTemplate({ ...newTemplate, messages: newMessages.length ? newMessages : [''] });
+                      }}
+                      disabled={newTemplate.messages.length === 1}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setNewTemplate({
+                    ...newTemplate,
+                    messages: [...newTemplate.messages, '']
+                  })}
+                >
+                  Add Message
+                </Button>
               </div>
               <Button
                 onClick={handleCreate}
@@ -148,8 +176,14 @@ export default function TemplatesPage() {
           {templates?.items?.map((template: MessageTemplate) => (
             <TableRow key={template.id}>
               <TableCell>{template.title}</TableCell>
-              <TableCell className="max-w-md truncate">
-                {template.content}
+              <TableCell className="max-w-md">
+                <div className="space-y-1">
+                  {template.messages.map((message, index) => (
+                    <div key={index} className="truncate text-sm">
+                      {index + 1}. {message}
+                    </div>
+                  ))}
+                </div>
               </TableCell>
               <TableCell>
                 {new Date(template.createdAt).toLocaleDateString()}

@@ -296,22 +296,28 @@ export class WhatsAppService extends EventEmitter {
     }
   }
 
-  public async sendMessage(to: string, content: string): Promise<void> {
+  public async sendMessage(to: string, content: string | string[]): Promise<void> {
     if (!this.isReady) {
       throw new Error('WhatsApp client is not ready');
     }
 
     try {
       const formattedNumber = this.formatPhoneNumber(to);
+      const messages = Array.isArray(content) ? content : [content];
       
-      // Check rate limit before sending
-      const canSend = await this.rateLimiter.canSendMessage(formattedNumber);
-      if (!canSend) {
-        const cooldownTime = this.rateLimiter.getCooldownTime(formattedNumber);
-        throw new Error(`Rate limit reached. Please wait ${Math.ceil(cooldownTime! / 60000)} minutes before sending to ${to}`);
+      // Check rate limit for all messages
+      for (let i = 0; i < messages.length; i++) {
+        const canSend = await this.rateLimiter.canSendMessage(formattedNumber);
+        if (!canSend) {
+          const cooldownTime = this.rateLimiter.getCooldownTime(formattedNumber);
+          throw new Error(`Rate limit reached. Please wait ${Math.ceil(cooldownTime! / 60000)} minutes before sending to ${to}`);
+        }
       }
 
-      await this.client.sendMessage(formattedNumber, content);
+      // Send all messages in sequence
+      for (const message of messages) {
+        await this.client.sendMessage(formattedNumber, message);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;

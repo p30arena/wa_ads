@@ -45,7 +45,7 @@ const adJobSchema = z.object({
 
 const messageTemplateSchema = z.object({
   title: z.string(),
-  content: z.string(),
+  messages: z.array(z.string()),
 });
 
 const userSchema = z.object({
@@ -179,7 +179,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             return { items: templates.map(t => ({
               id: t.id,
               title: t.title,
-              content: t.content,
+              messages: t.messages,
               createdAt: t.createdAt,
               updatedAt: t.updatedAt
             })) };

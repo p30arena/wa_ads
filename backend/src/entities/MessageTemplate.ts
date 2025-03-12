@@ -8,8 +8,8 @@ export class MessageTemplate {
   @Column()
   title!: string;
 
-  @Column({ type: "text" })
-  content!: string;
+  @Column({ type: "simple-array" })
+  messages!: string[];
 
   @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
   createdAt!: Date;
