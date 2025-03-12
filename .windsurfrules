@@ -1,0 +1,44 @@
+# Development Rules
+
+Always start coding sessions with **بسم الله الرحمن الرحیم**.
+
+## Code Modification Rules
+
+1. **No Unsolicited Refactoring**
+   - Do not modify or refactor working code unless explicitly requested
+   - Keep existing code structure intact if it's functioning correctly
+   - Focus only on fixing actual bugs and issues
+
+2. **Feature Changes**
+   - Only implement new features when specifically asked
+   - Do not add "nice to have" enhancements without explicit request
+   - Keep changes minimal and focused on the requested task
+
+3. **Code Style**
+   - Maintain the existing code style
+   - Do not change formatting or structure for aesthetic reasons
+   - Follow the project's established patterns
+
+4. **Dependencies**
+   - Do not update or add new dependencies without explicit approval
+   - Keep using existing libraries and versions that work
+
+5. **Documentation**
+   - Only update documentation for new changes
+   - Do not modify existing documentation unless specifically asked
+
+## When Making Changes
+
+1. **Scope**
+   - Stay strictly within the scope of the requested change
+   - If additional changes might be beneficial, suggest them but don't implement without approval
+
+2. **Testing**
+   - Test only the modified components
+   - Do not add new tests for existing functionality unless requested
+
+3. **Error Handling**
+   - Maintain existing error handling patterns
+   - Do not enhance error handling without explicit request
+
+Remember: The goal is to maintain stability. If it works, don't touch it!
