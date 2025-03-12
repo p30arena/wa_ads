@@ -10,7 +10,33 @@ import { AppDataSource } from '../config/database';
 import { WhatsAppService } from '../services/WhatsAppService';
 import { WebSocketManager } from '../services/WebSocketManager';
 
+const zBooleanInput = () => z.string().transform(s => s === "true" ? true : false);
+
 // Define input/output schemas
+const contactSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  phoneNumber: z.string(),
+  isMyContact: z.boolean(),
+  profilePicUrl: z.string().optional(),
+  status: z.string().optional(),
+});
+
+const groupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  participants: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    phoneNumber: z.string(),
+    isAdmin: z.boolean(),
+  })),
+  isAdmin: z.boolean(),
+  profilePicUrl: z.string().optional(),
+  createdAt: z.date(),
+});
+
 const adJobSchema = z.object({
   templateId: z.number(),
   audience: z.string(),
@@ -63,7 +89,81 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
   }));
 
   const routing: Routing = {
-    v1: {
+    api: {
+      whatsapp: {
+        contacts: e.build({
+          method: 'get',
+          input: z.object({
+            page: z.string().transform(s => Number(s)).optional().default("1"),
+            pageSize: z.string().transform(s => Number(s)).optional().default("20"),
+          }),
+          output: z.object({
+            items: z.array(contactSchema),
+            total: z.number(),
+            page: z.number(),
+            pageSize: z.number(),
+          }),
+          handler: async ({ input, options }) => {
+            if (!options.whatsappService.isConnected()) {
+              throw new Error('WhatsApp client is not connected');
+            }
+
+            const contacts = await options.whatsappService.getContacts();
+            const startIndex = (input.page - 1) * input.pageSize;
+            const endIndex = startIndex + input.pageSize;
+            
+            return {
+              items: contacts.slice(startIndex, endIndex),
+              total: contacts.length,
+              page: input.page,
+              pageSize: input.pageSize,
+            };
+          },
+        }),
+        groups: e.build({
+          method: 'get',
+          input: z.object({
+            page: z.string().transform(s => Number(s)).optional().default("1"),
+            pageSize: z.string().transform(s => Number(s)).optional().default("20"),
+          }),
+          output: z.object({
+            items: z.array(groupSchema),
+            total: z.number(),
+            page: z.number(),
+            pageSize: z.number(),
+          }),
+          handler: async ({ input, options }) => {
+            if (!options.whatsappService.isConnected()) {
+              throw new Error('WhatsApp client is not connected');
+            }
+
+            const groups = await options.whatsappService.getGroups();
+            const startIndex = (input.page - 1) * input.pageSize;
+            const endIndex = startIndex + input.pageSize;
+            
+            return {
+              items: groups.slice(startIndex, endIndex),
+              total: groups.length,
+              page: input.page,
+              pageSize: input.pageSize,
+            };
+          },
+        }),
+        status: e.build({
+          method: 'get',
+          input: z.object({}),
+          output: z.object({
+            connected: z.boolean(),
+            qrCode: z.string().nullable(),
+            connectedClients: z.number(),
+          }),
+          handler: async ({ options }) => ({
+            connected: options.whatsappService.isConnected(),
+            qrCode: options.whatsappService.getQRCode(),
+            connectedClients: options.wsManager?.getConnectedClients() ?? 0,
+          }),
+        }),
+      },
       ads: {
         create: e.build({
           method: 'post',
@@ -75,7 +175,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             const [savedJob] = await adJobRepo.save(newJob);
             
             // Broadcast ad job creation
-            input.options?.wsManager?.broadcast('ad:status', {
+            options.wsManager?.broadcast('ad:status', {
               id: savedJob.id,
               status: savedJob.status,
               templateId: savedJob.templateId,
@@ -98,7 +198,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           output: z.object({
             items: z.array(adJobSchema.extend({ id: z.number() })),
           }),
-          handler: async ({ input, options }) => {
+          handler: async ({ input }) => {
             const adJobRepo = AppDataSource.getRepository(AdJob);
             const query = adJobRepo.createQueryBuilder('adJob');
             
@@ -230,7 +330,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
         list: e.build({
           method: 'get',
           input: z.object({
-            jobId: z.number().optional(),
+            jobId: z.string().transform(s=>Number(s)).optional(),
           }),
           output: z.object({
             items: z.array(moderationLogSchema.extend({ id: z.number() })),
@@ -256,7 +356,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           },
         }),
       },
-      contacts: {
+      contactGroups: {
         create: e.build({
           method: 'post',
           input: contactGroupSchema,
@@ -282,7 +382,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           method: 'get',
           input: z.object({
             type: z.enum(['contact', 'group'] as const).optional(),
-            isActive: z.boolean().optional(),
+            isActive: zBooleanInput().optional(),
           }),
           output: z.object({
             items: z.array(contactGroupSchema.extend({ id: z.number() })),
@@ -313,7 +413,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           },
         }),
       },
-      groups: {
+      whatsappGroups: {
         create: e.build({
           method: 'post',
           input: contactGroupSchema,
@@ -337,7 +437,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
         list: e.build({
           method: 'get',
           input: z.object({
-            isActive: z.boolean().optional(),
+            isActive: zBooleanInput().optional(),
           }),
           output: z.object({
             items: z.array(contactGroupSchema.extend({ id: z.number() })),
@@ -409,23 +509,11 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           },
         }),
       },
-      whatsapp: {
-        status: e.build({
-          method: 'get',
-          input: z.object({}),
-          output: z.object({
-            connected: z.boolean(),
-            qrCode: z.string().nullable(),
-          }),
-          handler: async ({ options }) => ({
-            connected: options.whatsappService.isConnected(),
-            qrCode: options.whatsappService.getQRCode(),
-            connectedClients: options.wsManager?.getConnectedClients() ?? 0,
-          }),
-        }),
-      },
+
     },
   };
 
   return routing;
 };
+
+export default createRoutes;

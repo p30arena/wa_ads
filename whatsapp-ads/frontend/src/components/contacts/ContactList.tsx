@@ -22,15 +22,20 @@ export function ContactList({ filter, onPageChange }: ContactListProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['contacts', filter],
     queryFn: async () => {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        page: String(filter.page || 1),
+        pageSize: String(filter.pageSize || 20),
+      });
       if (filter.search) params.append('search', filter.search);
       if (filter.isMyContact !== undefined) params.append('isMyContact', String(filter.isMyContact));
-      if (filter.page) params.append('page', String(filter.page));
-      if (filter.pageSize) params.append('pageSize', String(filter.pageSize));
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contacts?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch contacts');
-      return response.json();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/contacts?${params}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch contacts');
+      }
+      const { items, total } = (await response.json()).data;
+      return { items, total };
     },
   });
 
@@ -71,7 +76,7 @@ export function ContactList({ filter, onPageChange }: ContactListProps) {
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 </TableRow>
               ))
-            ) : data?.contacts.map((contact: Contact) => (
+            ) : data?.items?.map((contact: Contact) => (
               <TableRow key={contact.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
