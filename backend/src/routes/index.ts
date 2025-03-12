@@ -164,6 +164,53 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           }),
         }),
       },
+      templates: {
+        list: e.build({
+          method: 'get',
+          input: z.object({}),
+          output: z.object({
+            items: z.array(messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() })),
+          }),
+          handler: async () => {
+            const templateRepo = AppDataSource.getRepository(MessageTemplate);
+            const templates = await templateRepo.find({
+              order: { createdAt: 'DESC' },
+            });
+            return { items: templates.map(t => ({
+              id: t.id,
+              title: t.title,
+              content: t.content,
+              createdAt: t.createdAt,
+              updatedAt: t.updatedAt
+            })) };
+          },
+        }),
+        create: e.build({
+          method: 'post',
+          input: messageTemplateSchema,
+          output: messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() }),
+          handler: async ({ input }) => {
+            const templateRepo = AppDataSource.getRepository(MessageTemplate);
+            const template = templateRepo.create(input);
+            const savedTemplate = await templateRepo.save(template) as unknown as MessageTemplate;
+            return savedTemplate;
+          },
+        }),
+        delete: e.build({
+          method: 'delete',
+          input: z.object({
+            id: z.string().transform(s => Number(s)),
+          }),
+          output: z.object({
+            success: z.boolean(),
+          }),
+          handler: async ({ input }) => {
+            const templateRepo = AppDataSource.getRepository(MessageTemplate);
+            await templateRepo.delete(input.id);
+            return { success: true };
+          },
+        }),
+      },
       ads: {
         create: e.build({
           method: 'post',
@@ -214,41 +261,6 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               status: job.status,
             }));
             return { items };
-          },
-        }),
-      },
-      templates: {
-        create: e.build({
-          method: 'post',
-          input: messageTemplateSchema,
-          output: messageTemplateSchema.extend({ id: z.number() }),
-          handler: async ({ input }) => {
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const newTemplate = templateRepo.create(input);
-            const [savedTemplate] = await templateRepo.save(newTemplate);
-            return {
-              id: savedTemplate.id,
-              title: savedTemplate.title,
-              content: savedTemplate.content,
-            };
-          },
-        }),
-        list: e.build({
-          method: 'get',
-          input: z.object({}),
-          output: z.object({
-            items: z.array(messageTemplateSchema.extend({ id: z.number() })),
-          }),
-          handler: async () => {
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const templates = await templateRepo.find();
-            return {
-              items: templates.map(template => ({
-                id: template.id,
-                title: template.title,
-                content: template.content,
-              })),
-            };
           },
         }),
       },

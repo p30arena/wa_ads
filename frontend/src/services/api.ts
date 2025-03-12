@@ -32,12 +32,12 @@ export const phoneBookApi = {
 };
 
 export const templateApi = {
-  getTemplates: () => api.get<MessageTemplate[]>('/templates'),
+  getTemplates: () => api.get<MessageTemplate[]>('/api/templates/list'),
   createTemplate: (template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => 
-    api.post<MessageTemplate>('/templates', template),
+    api.post<MessageTemplate>('/api/templates/create', template),
   updateTemplate: (id: number, template: Partial<MessageTemplate>) => 
-    api.put<MessageTemplate>(`/templates/${id}`, template),
-  deleteTemplate: (id: number) => api.delete(`/templates/${id}`),
+    api.put<MessageTemplate>(`/api/templates/update?id=${id}`, template),
+  deleteTemplate: (id: number) => api.delete(`/api/templates/delete?id=${id}`),
 };
 
 export const adJobApi = {
