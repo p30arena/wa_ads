@@ -39,6 +39,10 @@ whatsapp-ads/
 
 ## Getting Started
 
+### Generating codebase.md
+
+```npx ai-digest```
+
 ### Prerequisites
 
 - Node.js (v16 or higher)
