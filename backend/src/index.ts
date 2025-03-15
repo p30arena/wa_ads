@@ -24,6 +24,7 @@ const startServer = async () => {
       const res = await fetch("https://web.whatsapp.com/check-update?version=1&platform=web");
       const data = await res.json();
       currentVersion = (data as any).currentVersion;
+      console.log('Current WhatsApp version:', currentVersion);
     } catch(e) {
       console.error(e);
     }

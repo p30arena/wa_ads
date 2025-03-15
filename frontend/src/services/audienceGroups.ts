@@ -1,6 +1,6 @@
 import { AudienceGroup } from '../../../shared/types/audienceGroups';
 
-const API_BASE = '/api/audienceGroups';
+const API_BASE = '/api/audience-groups';
 
 export const audienceGroupsApi = {
   list: async (): Promise<AudienceGroup[]> => {

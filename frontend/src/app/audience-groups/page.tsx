@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SelectContacts } from '@/components/SelectContacts';
 import { SelectGroups } from '@/components/SelectGroups';
-import { Dialog } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -127,15 +133,17 @@ export default function AudienceGroupsPage() {
 
   const GroupDialog = ({ isOpen, onClose, mode }: { isOpen: boolean; onClose: () => void; mode: 'create' | 'edit' }) => (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg p-6 w-[500px] max-h-[80vh] overflow-y-auto">
-          <h2 className="text-lg font-semibold mb-4">
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>
             {mode === 'create' ? 'Create New Audience Group' : 'Edit Audience Group'}
-          </h2>
-          
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <label className="text-sm font-medium">Name</label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -145,7 +153,7 @@ export default function AudienceGroupsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Select Contacts</label>
+              <label className="text-sm font-medium">Select Contacts</label>
               <SelectContacts
                 selected={selectedContacts}
                 onChange={setSelectedContacts}
@@ -153,27 +161,27 @@ export default function AudienceGroupsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Select Groups</label>
+              <label className="text-sm font-medium">Select Groups</label>
               <SelectGroups
                 selected={selectedGroups}
                 onChange={setSelectedGroups}
               />
             </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={onClose} disabled={isLoading}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={mode === 'create' ? handleCreate : handleEdit}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Loading...' : mode === 'create' ? 'Create' : 'Save Changes'}
-              </Button>
-            </div>
           </div>
         </div>
-      </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={mode === 'create' ? handleCreate : handleEdit}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Loading...' : mode === 'create' ? 'Create' : 'Save Changes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   );
 

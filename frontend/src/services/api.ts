@@ -18,17 +18,17 @@ const api = axios.create({
 });
 
 export const whatsappApi = {
-  getStatus: () => api.get('/whatsapp/status'),
-  getContacts: () => api.get<ContactGroup[]>('/whatsapp/contacts'),
-  getGroups: () => api.get<ContactGroup[]>('/whatsapp/groups'),
+  getStatus: () => api.get('/api/whatsapp/status'),
+  getContacts: () => api.get<ContactGroup[]>('/api/whatsapp/contacts'),
+  getGroups: () => api.get<ContactGroup[]>('/api/whatsapp/groups'),
 };
 
 export const phoneBookApi = {
-  getEntries: () => api.get<PhoneBookEntry[]>('/phonebook'),
-  addEntry: (entry: Omit<PhoneBookEntry, 'id'>) => api.post<PhoneBookEntry>('/phonebook', entry),
+  getEntries: () => api.get<PhoneBookEntry[]>('/api/phonebook'),
+  addEntry: (entry: Omit<PhoneBookEntry, 'id'>) => api.post<PhoneBookEntry>('/api/phonebook', entry),
   updateEntry: (id: number, entry: Partial<PhoneBookEntry>) => 
-    api.put<PhoneBookEntry>(`/phonebook/${id}`, entry),
-  deleteEntry: (id: number) => api.delete(`/phonebook/${id}`),
+    api.put<PhoneBookEntry>(`/api/phonebook/${id}`, entry),
+  deleteEntry: (id: number) => api.delete(`/api/phonebook/${id}`),
 };
 
 export const templateApi = {
@@ -41,20 +41,20 @@ export const templateApi = {
 };
 
 export const adJobApi = {
-  getJob: (id: number) => api.get<AdJob>(`/jobs/${id}`),
-  getJobs: () => api.get<AdJob[]>('/jobs'),
+  getJob: (id: number) => api.get<AdJob>(`/api/jobs/${id}`),
+  getJobs: () => api.get<AdJob[]>('/api/jobs'),
   createJob: (job: Omit<AdJob, 'id' | 'status' | 'messagesSent' | 'messagesDelivered' | 'createdAt' | 'updatedAt'>) => 
-    api.post<AdJob>('/jobs', job),
+    api.post<AdJob>('/api/jobs', job),
   updateJobStatus: (id: number, status: AdJob['status']) => 
-    api.put<AdJob>(`/jobs/${id}/status`, { status }),
-  getJobLogs: (jobId: number) => api.get<ModerationLog[]>(`/jobs/${jobId}/logs`),
-  startJob: (id: number) => api.post<AdJob>(`/jobs/${id}/start`),
-  stopJob: (id: number) => api.post<AdJob>(`/jobs/${id}/stop`),
-  updateJobSchedule: (id: number, schedule: any) => api.put<AdJob>(`/jobs/${id}/schedule`, { schedule }),
+    api.put<AdJob>(`/api/jobs/${id}/status`, { status }),
+  getJobLogs: (jobId: number) => api.get<ModerationLog[]>(`/api/jobs/${jobId}/logs`),
+  startJob: (id: number) => api.post<AdJob>(`/api/jobs/${id}/start`),
+  stopJob: (id: number) => api.post<AdJob>(`/api/jobs/${id}/stop`),
+  updateJobSchedule: (id: number, schedule: any) => api.put<AdJob>(`/api/jobs/${id}/schedule`, { schedule }),
 };
 
 export const moderationApi = {
-  getModerationQueue: () => api.get<AdJob[]>('/moderation/queue'),
+  getModerationQueue: () => api.get<AdJob[]>('/api/moderation/queue'),
   moderateJob: (jobId: number, action: ModerationLog['action'], notes?: string) => 
-    api.post<ModerationLog>(`/moderation/${jobId}`, { action, notes }),
+    api.post<ModerationLog>(`/api/moderation/${jobId}`, { action, notes }),
 };
