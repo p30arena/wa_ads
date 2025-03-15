@@ -55,7 +55,16 @@ export class WhatsAppService extends EventEmitter {
       takeoverOnConflict: true,
       authStrategy: new LocalAuth(),
       puppeteer: {
-        args: ['--no-sandbox']
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ],
+        headless: true
       },
       webVersion: currentVersion ?? "2.2413.51", // retrieve the latest using this url: https://web.whatsapp.com/check-update?version=1&platform=web
     });
@@ -270,7 +279,20 @@ export class WhatsAppService extends EventEmitter {
   public async initialize(): Promise<void> {
     try {
       console.log('[WhatsAppService] Initializing WhatsApp client...');
-      await this.client.initialize();
+      
+      // Create a timeout promise
+      const timeout = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('WhatsApp client initialization timed out after 30 seconds'));
+        }, 30_000);
+      });
+
+      // Race between initialization and timeout
+      await Promise.race([
+        this.client.initialize(),
+        timeout
+      ]);
+
       console.log('[WhatsAppService] WhatsApp client initialized successfully');
 
       // After initialization, if we're not ready and don't have a QR code,
