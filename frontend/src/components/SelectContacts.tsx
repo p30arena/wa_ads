@@ -27,7 +27,7 @@ export function SelectContacts({ selected, onChange }: SelectContactsProps) {
       setIsLoading(true);
       setError(null);
       const { data } = await whatsappApi.getContacts();
-      setContacts(data);
+      setContacts(data.data.items);
     } catch (err) {
       console.error('Error fetching contacts:', err);
       setError('Failed to load contacts. Please try again later.');
