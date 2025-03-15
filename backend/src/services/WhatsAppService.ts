@@ -47,6 +47,8 @@ export class WhatsAppService extends EventEmitter {
   private currentQRCode: string | null = null;
   private contacts: Map<string, ContactData> = new Map();
   private groups: Map<string, GroupData> = new Map();
+  private initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout' = 'none';
+  private initializationError: string | null = null;
   constructor(wsManager: WebSocketManager, { currentVersion }: { currentVersion?: string }) {
     super();
     this.wsManager = wsManager;
@@ -279,6 +281,14 @@ export class WhatsAppService extends EventEmitter {
   public async initialize(): Promise<void> {
     try {
       console.log('[WhatsAppService] Initializing WhatsApp client...');
+      this.initializationStatus = 'initializing';
+      this.initializationError = null;
+      
+      // Notify clients about initialization start
+      this.wsManager.broadcast('whatsapp:status', {
+        status: 'initializing',
+        timestamp: new Date()
+      });
       
       // Create a timeout promise
       const timeout = new Promise((_, reject) => {
@@ -294,6 +304,7 @@ export class WhatsAppService extends EventEmitter {
       ]);
 
       console.log('[WhatsAppService] WhatsApp client initialized successfully');
+      this.initializationStatus = 'ready';
 
       // After initialization, if we're not ready and don't have a QR code,
       // notify clients that we're waiting for QR
@@ -308,11 +319,14 @@ export class WhatsAppService extends EventEmitter {
       // Reset state
       this.isReady = false;
       this.currentQRCode = null;
+      this.initializationError = error instanceof Error ? error.message : String(error);
+      this.initializationStatus = (error instanceof Error && error.message?.includes('timed out')) ? 'timeout' : 'error';
 
       // Notify frontend of initialization error
-      this.wsManager.broadcast('whatsapp:error', {
-        message: 'Failed to initialize WhatsApp client',
-        error: error instanceof Error ? error.message : String(error)
+      this.wsManager.broadcast('whatsapp:status', {
+        status: this.initializationStatus,
+        error: this.initializationError,
+        timestamp: new Date()
       });
       throw error;
     }
@@ -396,5 +410,19 @@ export class WhatsAppService extends EventEmitter {
 
   public getQRCode(): string | null {
     return this.currentQRCode;
+  }
+
+  public getStatus(): {
+    connected: boolean;
+    qrCode: string | null;
+    initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
+    initializationError: string | null;
+  } {
+    return {
+      connected: this.isReady,
+      qrCode: this.currentQRCode,
+      initializationStatus: this.initializationStatus,
+      initializationError: this.initializationError
+    };
   }
 }

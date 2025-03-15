@@ -159,6 +159,38 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             };
           },
         }),
+        initialize: e.build({
+          method: 'post',
+          input: z.object({}),
+          output: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+          handler: async ({ options }) => {
+            try {
+              const timeout = new Promise((_, reject) => {
+                setTimeout(() => {
+                  reject(new Error('WhatsApp client initialization timed out after 30 seconds'));
+                }, 30_000);
+              });
+
+              await Promise.race([
+                options.whatsappService.initialize(),
+                timeout,
+              ]);
+              
+              return {
+                success: true,
+                message: 'WhatsApp client initialization started',
+              };
+            } catch (error) {
+              return {
+                success: false,
+                message: error instanceof Error ? error.message : 'Failed to initialize WhatsApp client',
+              };
+            }
+          },
+        }),
         status: e.build({
           method: 'get',
           input: z.object({}),
@@ -166,12 +198,16 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             connected: z.boolean(),
             qrCode: z.string().nullable(),
             connectedClients: z.number(),
+            initializationStatus: z.enum(['none', 'initializing', 'ready', 'error', 'timeout']),
+            initializationError: z.string().nullable(),
           }),
-          handler: async ({ options }) => ({
-            connected: options.whatsappService.isConnected(),
-            qrCode: options.whatsappService.getQRCode(),
-            connectedClients: options.wsManager?.getConnectedClients() ?? 0,
-          }),
+          handler: async ({ options }) => {
+            const status = options.whatsappService.getStatus();
+            return {
+              ...status,
+              connectedClients: options.wsManager?.getConnectedClients() ?? 0,
+            };
+          },
         }),
       },
       templates: {

@@ -34,7 +34,10 @@ export const whatsappApi = {
     connected: boolean;
     qrCode: string | null;
     connectedClients: number;
+    initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
+    initializationError: string | null;
   }>>('/api/whatsapp/status'),
+  initialize: () => api.post<ApiResponse<void>>('/api/whatsapp/initialize'),
   getContacts: (page = 1, pageSize = 20) => api.get<ApiResponse<PaginatedResponse<ContactGroup>>>('/api/whatsapp/contacts', {
     params: { page, pageSize }
   }),
