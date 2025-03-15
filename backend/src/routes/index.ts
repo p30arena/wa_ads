@@ -544,7 +544,39 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           },
         }),
       },
-
+      audienceGroups: {
+        create: e.build({
+          method: 'post',
+          input: z.object({
+            name: z.string(),
+            contacts: z.array(z.string()),
+            groups: z.array(z.string()),
+          }),
+          output: z.object({ id: z.string(), name: z.string(), contacts: z.array(z.string()), groups: z.array(z.string()) }),
+          handler: async ({ input }) => {
+            const id = Date.now().toString();
+            // Store in database (TBD: Create AudienceGroup entity)
+            return { id, ...input };
+          },
+        }),
+        list: e.build({
+          method: 'get',
+          output: z.object({ items: z.array(z.object({ id: z.string(), name: z.string(), contacts: z.array(z.string()), groups: z.array(z.string()) })) }),
+          handler: async () => ({ items: [] }), // Placeholder until entity is created
+        }),
+        update: e.build({
+          method: 'put',
+          input: z.object({ id: z.string(), name: z.string().optional(), contacts: z.array(z.string()).optional(), groups: z.array(z.string()).optional() }),
+          output: z.object({ success: z.boolean() }),
+          handler: async ({ input }) => ({ success: true }), // Placeholder
+        }),
+        delete: e.build({
+          method: 'delete',
+          input: z.object({ id: z.string() }),
+          output: z.object({ success: z.boolean() }),
+          handler: async ({ input }) => ({ success: true }), // Placeholder
+        }),
+      },
     },
   };
 

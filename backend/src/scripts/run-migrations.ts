@@ -1,5 +1,6 @@
 import { AppDataSource } from '../config/database';
 import { migrate as templateMigration } from '../migrations/01_template_content_to_messages';
+import { migrate as audienceGroupsMigration } from '../migrations/02_create_audience_groups';
 
 async function runMigrations() {
   try {
@@ -13,6 +14,10 @@ async function runMigrations() {
     // Template content to messages migration
     console.log('\nRunning: Template content to messages migration');
     await templateMigration();
+    
+    // Audience groups table migration
+    console.log('\nRunning: Create audience groups table migration');
+    await audienceGroupsMigration();
     
     console.log('\nAll migrations completed successfully');
     process.exit(0);
