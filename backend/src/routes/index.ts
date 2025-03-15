@@ -9,6 +9,7 @@ import { PhoneBook } from '../entities/PhoneBook';
 import { AppDataSource } from '../config/database';
 import { WhatsAppService } from '../services/WhatsAppService';
 import { WebSocketManager } from '../services/WebSocketManager';
+import { AudienceGroup } from '../entities/AudienceGroup'; // Import AudienceGroup entity
 
 const zBooleanInput = () => z.string().transform(s => s === "true" ? true : false);
 
@@ -73,6 +74,15 @@ const phoneBookSchema = z.object({
   name: z.string(),
   phone: z.string(),
   groupName: z.string().optional(),
+});
+
+const audienceGroupSchema = z.object({ // Define audience group schema
+  id: z.number(),
+  name: z.string(),
+  contacts: z.array(z.string()),
+  groups: z.array(z.string()),
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });
 
 type Options = {
@@ -552,29 +562,59 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             contacts: z.array(z.string()),
             groups: z.array(z.string()),
           }),
-          output: z.object({ id: z.string(), name: z.string(), contacts: z.array(z.string()), groups: z.array(z.string()) }),
+          output: audienceGroupSchema, // Update output schema
           handler: async ({ input }) => {
-            const id = Date.now().toString();
-            // Store in database (TBD: Create AudienceGroup entity)
-            return { id, ...input };
+            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
+            const audienceGroup = audienceGroupRepo.create(input);
+            const savedGroup = await audienceGroupRepo.save(audienceGroup) as unknown as AudienceGroup;
+            return savedGroup;
           },
         }),
         list: e.build({
           method: 'get',
-          output: z.object({ items: z.array(z.object({ id: z.string(), name: z.string(), contacts: z.array(z.string()), groups: z.array(z.string()) })) }),
-          handler: async () => ({ items: [] }), // Placeholder until entity is created
+          output: z.object({ items: z.array(audienceGroupSchema) }), // Update output schema
+          handler: async () => {
+            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
+            const groups = await audienceGroupRepo.find();
+            return { items: groups };
+          },
         }),
         update: e.build({
           method: 'put',
           input: z.object({ id: z.string(), name: z.string().optional(), contacts: z.array(z.string()).optional(), groups: z.array(z.string()).optional() }),
           output: z.object({ success: z.boolean() }),
-          handler: async ({ input }) => ({ success: true }), // Placeholder
+          handler: async ({ input }) => {
+            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
+            const group = await audienceGroupRepo.findOneBy({ id: input.id });
+            if (!group) {
+              throw new Error('Audience group not found');
+            }
+            
+            // Update fields
+            if (input.name) {
+              group.name = input.name;
+            }
+            if (input.contacts) {
+              group.contacts = input.contacts;
+            }
+            if (input.groups) {
+              group.groups = input.groups;
+            }
+            group.updatedAt = new Date();
+            
+            await audienceGroupRepo.save(group);
+            return { success: true };
+          },
         }),
         delete: e.build({
           method: 'delete',
           input: z.object({ id: z.string() }),
           output: z.object({ success: z.boolean() }),
-          handler: async ({ input }) => ({ success: true }), // Placeholder
+          handler: async ({ input }) => {
+            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
+            await audienceGroupRepo.delete(input.id);
+            return { success: true };
+          },
         }),
       },
     },

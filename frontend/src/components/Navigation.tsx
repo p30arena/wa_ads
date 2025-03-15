@@ -12,6 +12,7 @@ const navigation = [
   { name: 'Contacts & Groups', href: '/contacts' },
   { name: 'Phone Book', href: '/phonebook' },
   { name: 'Moderation', href: '/moderation' },
+  { name: 'Audience Groups', href: '/audience-groups' },
 ];
 
 export function Navigation() {
