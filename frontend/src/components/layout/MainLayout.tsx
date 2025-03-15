@@ -10,7 +10,7 @@ import {
   ClipboardDocumentListIcon,
   ChartBarIcon,
   CalendarIcon,
-  XMarkIcon,
+  ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { WhatsAppQRCode } from '@/components/WhatsAppQRCode';
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
+  { name: 'Audience Groups', href: '/audience-groups', icon: ListBulletIcon },
   { name: 'Contacts & Groups', href: '/contacts', icon: UsersIcon },
   { name: 'Message Templates', href: '/templates', icon: ChatBubbleLeftRightIcon },
   { name: 'Ad Jobs', href: '/jobs', icon: ClipboardDocumentListIcon },
