@@ -17,6 +17,7 @@ export class WebSocketManager extends EventEmitter {
   private whatsAppService: {
     getQRCode: () => string | null;
     isConnected: () => boolean;
+    initialize: () => Promise<void>;
   } | null = null; // Will be set by setWhatsAppService
   private messageStats = {
     received: 0,
@@ -27,6 +28,7 @@ export class WebSocketManager extends EventEmitter {
   public setWhatsAppService(service: {
     getQRCode: () => string | null;
     isConnected: () => boolean;
+    initialize: () => Promise<void>;
   }) {
     debug('Setting WhatsApp service');
     this.whatsAppService = service;
@@ -83,6 +85,14 @@ export class WebSocketManager extends EventEmitter {
             data: parsed.data,
             stats: this.messageStats
           });
+
+          // Handle retry request
+          if (parsed.type === 'whatsapp:retry' as WSEventType && this.whatsAppService) {
+            debug('Received retry request');
+            this.whatsAppService.initialize().catch(error => {
+              debugError('Failed to retry WhatsApp initialization:', error);
+            });
+          }
 
           // Echo back test messages
           if (parsed.type === 'ad:status' && parsed.data.status === 'test') {

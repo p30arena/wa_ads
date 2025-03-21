@@ -23,7 +23,11 @@ export interface PhoneBookEntry {
 export interface MessageTemplate {
   id: number;
   title: string;
-  messages: string[];
+  messages: Array<{
+    type: 'text' | 'media';
+    content: string;
+    caption?: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,7 +54,8 @@ export interface ModerationLog {
 }
 
 export interface WhatsAppStatus {
-  isConnected: boolean;
-  qrCode?: string;
-  lastConnection?: string;
+  connected: boolean;
+  qrCode: string | null;
+  initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
+  initializationError: string | null;
 }

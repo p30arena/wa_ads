@@ -15,7 +15,10 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 export const useWebSocket = create<WebSocketStore>((set, get) => ({
   socket: null,
   status: {
-    isConnected: false,
+    connected: false,
+    qrCode: null,
+    initializationStatus: 'none',
+    initializationError: null,
   },
   connect: () => {
     const socket = new WebSocket(WS_URL);
@@ -42,8 +45,8 @@ export const useWebSocket = create<WebSocketStore>((set, get) => ({
             set(state => ({
               status: {
                 ...state.status,
-                isConnected: true,
-                qrCode: undefined,
+                connected: true,
+                qrCode: null,
                 lastConnection: message.data.timestamp,
               },
             }));
@@ -53,8 +56,8 @@ export const useWebSocket = create<WebSocketStore>((set, get) => ({
             set(state => ({
               status: {
                 ...state.status,
-                isConnected: true,
-                qrCode: undefined,
+                connected: true,
+                qrCode: null,
               },
             }));
             break;
@@ -63,7 +66,7 @@ export const useWebSocket = create<WebSocketStore>((set, get) => ({
             set(state => ({
               status: {
                 ...state.status,
-                isConnected: false,
+                connected: false,
                 lastConnection: message.data.timestamp,
               },
             }));
@@ -78,8 +81,10 @@ export const useWebSocket = create<WebSocketStore>((set, get) => ({
       set({ 
         socket: null,
         status: {
-          isConnected: false,
-          qrCode: undefined,
+          connected: false,
+          qrCode: null,
+          initializationStatus: 'error',
+          initializationError: null,
         },
       });
       // Attempt to reconnect after 5 seconds

@@ -42,3 +42,5 @@ Always start coding sessions with **بسم الله الرحمن الرحیم**.
    - Do not enhance error handling without explicit request
 
 Remember: The goal is to maintain stability. If it works, don't touch it!
+
+Don't use "import { WSEventType } from '../shared/types/websocket';" instead use "import { WSEventType } from '@shared/types/websocket';".

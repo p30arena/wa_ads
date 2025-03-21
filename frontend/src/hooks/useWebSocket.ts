@@ -2,15 +2,17 @@ import { useEffect, useState, useCallback } from 'react';
 import { WebSocketService, WSEventType } from '@/services/WebSocketService';
 
 interface WhatsAppStatus {
-  isConnected: boolean;
+  connected: boolean;
   qrCode: string | null;
-  lastError?: string;
+  initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
+  initializationError: string | null;
 }
 
 interface UseWebSocketReturn {
   status: WhatsAppStatus;
   isConnected: boolean;
   sendMessage: (type: WSEventType, data: any) => void;
+  retryWhatsAppConnection: () => void;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
@@ -18,8 +20,10 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 export function useWebSocket(): UseWebSocketReturn {
   const [ws, setWs] = useState<WebSocketService | null>(null);
   const [status, setStatus] = useState<WhatsAppStatus>({
-    isConnected: false,
+    connected: false,
     qrCode: null,
+    initializationStatus: 'none',
+    initializationError: null,
   });
 
   // Log WebSocket events in development
@@ -30,14 +34,14 @@ export function useWebSocket(): UseWebSocketReturn {
   }, []);
 
   useEffect(() => {
-    const wsService = new WebSocketService(WS_URL);
+    const wsService = WebSocketService.getInstance(WS_URL);
 
     wsService.on('connected', () => {
       logEvent('Connected');
       setStatus((prev) => ({
         ...prev,
-        isConnected: true,
-        lastError: undefined
+        connected: true,
+        initializationError: null
       }));
     });
 
@@ -45,7 +49,8 @@ export function useWebSocket(): UseWebSocketReturn {
       logEvent('Disconnected');
       setStatus((prev) => ({
         ...prev,
-        isConnected: false,
+        connected: false,
+        initializationStatus: 'error',
         // Keep QR code when disconnected to avoid flashing
         // qrCode: null
       }));
@@ -55,7 +60,8 @@ export function useWebSocket(): UseWebSocketReturn {
       logEvent('Error', error);
       setStatus((prev) => ({
         ...prev,
-        lastError: error.message
+        initializationError: error.message,
+        initializationStatus: 'error'
       }));
     });
 
@@ -76,10 +82,11 @@ export function useWebSocket(): UseWebSocketReturn {
           return prev;
         }
 
-        const newStatus = {
+        const newStatus: WhatsAppStatus = {
           ...prev,
           qrCode: data.qr,
-          isConnected: false // Reset connected state when new QR code arrives
+          connected: false, // Reset connected state when new QR code arrives
+          initializationStatus: 'initializing'
         };
 
         console.log('[useWebSocket] Updated status:', {
@@ -91,13 +98,27 @@ export function useWebSocket(): UseWebSocketReturn {
       });
     });
 
+    wsService.on('whatsapp:state', (data) => {
+      logEvent('WhatsApp State', data);
+      setStatus((prev) => {
+        const newStatus: WhatsAppStatus = {
+          ...prev,
+          connected: data.connected,
+          initializationStatus: data.initializationStatus as WhatsAppStatus['initializationStatus'],
+          initializationError: data.initializationError
+        };
+        return newStatus;
+      });
+    });
+
     wsService.on('whatsapp:ready', () => {
       logEvent('WhatsApp Ready');
       setStatus((prev) => ({
         ...prev,
-        isConnected: true,
+        connected: true,
         qrCode: null,
-        lastError: undefined
+        initializationStatus: 'ready',
+        initializationError: null
       }));
     });
 
@@ -105,9 +126,10 @@ export function useWebSocket(): UseWebSocketReturn {
       logEvent('WhatsApp Authenticated');
       setStatus((prev) => ({
         ...prev,
-        isConnected: true,
+        connected: true,
         qrCode: null,
-        lastError: undefined
+        initializationStatus: 'ready',
+        initializationError: null
       }));
     });
 
@@ -115,7 +137,8 @@ export function useWebSocket(): UseWebSocketReturn {
       logEvent('WhatsApp Disconnected');
       setStatus((prev) => ({
         ...prev,
-        isConnected: false,
+        connected: false,
+        initializationStatus: 'error',
         // Don't clear QR code on disconnect to avoid flashing
         // qrCode: null
       }));
@@ -146,9 +169,19 @@ export function useWebSocket(): UseWebSocketReturn {
     }
   }, [ws, logEvent]);
 
+  const retryWhatsAppConnection = useCallback(() => {
+    if (ws?.isConnected()) {
+      logEvent('Retrying WhatsApp Connection');
+      ws.send('whatsapp:retry', {});
+    } else {
+      console.warn('[WebSocket] Cannot retry WhatsApp: not connected');
+    }
+  }, [ws, logEvent]);
+
   return {
     status,
-    isConnected: ws?.isConnected() || false,
+    isConnected: status.connected,
     sendMessage,
+    retryWhatsAppConnection
   };
 }

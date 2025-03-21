@@ -2,6 +2,7 @@
 
 import { ModerationPanel } from '@/components/ModerationPanel';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { WhatsAppStatus } from '@/components/WhatsAppStatus';
 
 export default function ModerationPage() {
   const { status: wsStatus } = useWebSocket();
@@ -18,16 +19,7 @@ export default function ModerationPage() {
           </p>
         </div>
         <div className="mt-4 flex md:ml-4 md:mt-0">
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-block h-3 w-3 rounded-full ${
-                wsStatus.isConnected ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            />
-            <span className="text-sm text-gray-600">
-              {wsStatus.isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
+          <WhatsAppStatus />
         </div>
       </div>
 

@@ -6,8 +6,10 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { MessageTemplateEditor } from '@/components/MessageTemplateEditor';
 import { AdScheduler } from '@/components/AdScheduler';
 import { AudienceSelector } from '@/components/AudienceSelector';
-import { whatsappApi, templateApi, adJobApi } from '@/services/api';
+import { whatsappApi, templateApi, adJobApi, phoneBookApi } from '@/services/api';
+import { ContactGroup, MessageTemplate, AdJob } from '@/types';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { WhatsAppStatus } from '@/components/WhatsAppStatus';
 
 export default function CreateAdPage() {
   const router = useRouter();
@@ -28,13 +30,13 @@ export default function CreateAdPage() {
   });
 
   // Transform ContactGroups into separate contacts and groups
-  const contacts = contactGroups?.filter(cg => cg.type === 'contact').map(cg => ({
+  const contacts = contactGroups?.data?.items?.filter((cg: ContactGroup) => cg.type === 'contact').map((cg: ContactGroup) => ({
     id: cg.id,
     name: cg.name,
     phone: cg.phone || '',
   }));
 
-  const groups = contactGroups?.filter(cg => cg.type === 'group').map(cg => ({
+  const groups = contactGroups?.data?.items?.filter((cg: ContactGroup) => cg.type === 'group').map((cg: ContactGroup) => ({
     id: cg.id,
     name: cg.name,
     groupId: cg.groupId || '',
@@ -48,17 +50,17 @@ export default function CreateAdPage() {
     },
   });
 
-  const { data: templates } = useQuery({
-    queryKey: ['phonebook'],
+  const { data: templatesResponse } = useQuery({
+    queryKey: ['templates'],
     queryFn: async () => {
-      const response = await whatsappApi.getContacts();
+      const response = await templateApi.getTemplates();
       return response.data;
     },
   });
 
   // Create template mutation
   const createTemplateMutation = useMutation({
-    mutationFn: async (templateData: any) => {
+    mutationFn: async (templateData: { title: string; messages: Array<{ type: 'text' | 'media'; content: string; caption?: string }> }) => {
       const response = await templateApi.createTemplate(templateData);
       return response.data;
     },
@@ -66,7 +68,7 @@ export default function CreateAdPage() {
 
   // Create ad job mutation
   const createJobMutation = useMutation({
-    mutationFn: async (jobData: any) => {
+    mutationFn: async (jobData: { templateId: number; audience: string; schedule: any; userId: number }) => {
       const response = await adJobApi.createJob(jobData);
       return response.data;
     },
@@ -75,27 +77,27 @@ export default function CreateAdPage() {
     },
   });
 
-  const handleTemplateCreation = async (title: string, messages: any[]) => {
+  const handleTemplateCreation = async (title: string, messages: Array<{ type: 'text' | 'media'; content: string; caption?: string }>) => {
     setTemplate({ title, messages });
     setStep('audience');
 
     // Create template in background
     await createTemplateMutation.mutateAsync({
       title,
-      content: JSON.stringify(messages),
+      messages,
     });
   };
 
   const [selectedAudience, setSelectedAudience] = useState<{
-    contacts: any[];
-    groups: any[];
-    phoneBook: any[];
+    contacts: { id: number; name: string; phone: string }[];
+    groups: { id: number; name: string; groupId: string }[];
+    phoneBook: { id: number; name: string; phone: string }[];
   } | null>(null);
 
   const handleAudienceSelection = async (audience: {
-    contacts: any[];
-    groups: any[];
-    phoneBook: any[];
+    contacts: { id: number; name: string; phone: string }[];
+    groups: { id: number; name: string; groupId: string }[];
+    phoneBook: { id: number; name: string; phone: string }[];
   }) => {
     setSelectedAudience(audience);
     setStep('schedule');
@@ -106,40 +108,17 @@ export default function CreateAdPage() {
 
     // Create ad job
     await createJobMutation.mutateAsync({
-      templateId: createTemplateMutation.data?.id,
+      templateId: createTemplateMutation.data?.data?.id || 0,
+      userId: 1, // TODO: Get from auth context
       audience: JSON.stringify(selectedAudience),
       schedule,
     });
   };
 
-  if (!wsStatus.isConnected) {
+  if (!wsStatus.connected) {
     return (
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="bg-yellow-50 p-4 rounded-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-yellow-400"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
-                WhatsApp Connection Required
-              </h3>
-              <p className="mt-2 text-sm text-yellow-700">
-                Please ensure WhatsApp is connected before creating an ad campaign.
-              </p>
-            </div>
-          </div>
-        </div>
+        <WhatsAppStatus />
       </div>
     );
   }
@@ -250,14 +229,14 @@ export default function CreateAdPage() {
             <AudienceSelector
               contacts={contacts || []}
               groups={groups || []}
-              phoneBook={phoneBookEntries || []}
+              phoneBook={phoneBookEntries?.data?.items || []}
               onSelectionChange={handleAudienceSelection}
             />
           )}
 
-          {step === 'schedule' && createJobMutation.data && (
+          {step === 'schedule' && createJobMutation.data?.data && (
             <AdScheduler
-              jobId={createJobMutation.data.id}
+              jobId={createJobMutation.data.data.id}
               onScheduleSubmit={handleScheduleSubmit}
             />
           )}

@@ -157,12 +157,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
                     <div className="flex items-center gap-x-3 text-sm font-semibold leading-6 text-gray-900">
                       <div className={cn(
                         'h-2.5 w-2.5 rounded-full',
-                        status.isConnected ? 'bg-green-500' : status.qrCode ? 'bg-yellow-500' : 'bg-red-500'
+                        status.connected ? 'bg-green-500' : status.qrCode ? 'bg-yellow-500' : 'bg-red-500'
                       )} />
                       <span>WhatsApp Status</span>
                     </div>
                     <p className="mt-1 text-xs text-gray-600">
-                      {status.isConnected ? 'Connected and ready' :
+                      {status.connected ? 'Connected and ready' :
                        status.qrCode ? 'Scan QR code in dashboard' :
                        'Initializing connection...'}
                     </p>

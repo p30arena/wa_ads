@@ -6,6 +6,8 @@ export type WSEventType =
   | 'whatsapp:disconnected'
   | 'whatsapp:error'
   | 'whatsapp:status'
+  | 'whatsapp:state'
+  | 'whatsapp:retry'
   | 'ad:progress'
   | 'ad:complete'
   | 'ad:error'

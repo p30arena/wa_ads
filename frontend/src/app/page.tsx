@@ -3,7 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { adJobApi, moderationApi } from '@/services/api';
-import { WhatsAppQRCode } from '@/components/WhatsAppQRCode';
+import { WhatsAppStatus } from '@/components/WhatsAppStatus';
+import { AdJob } from '@/types';
 import {
   CheckCircleIcon,
   ExclamationCircleIcon,
@@ -16,12 +17,12 @@ export default function Dashboard() {
 
   // Debug logging for WhatsApp connection status
   console.log('[Dashboard] WhatsApp status:', {
-    isConnected: wsStatus.isConnected,
+    connected: wsStatus.connected,
     hasQRCode: Boolean(wsStatus.qrCode),
     qrCodeLength: wsStatus.qrCode?.length
   });
   
-  const { data: pendingJobs } = useQuery({
+  const { data: pendingJobsResponse } = useQuery({
     queryKey: ['pending-jobs'],
     queryFn: async () => {
       const response = await moderationApi.getModerationQueue();
@@ -29,7 +30,9 @@ export default function Dashboard() {
     },
   });
 
-  const { data: recentJobs } = useQuery({
+  const pendingJobs = pendingJobsResponse?.data?.items || [];
+
+  const { data: recentJobsResponse } = useQuery({
     queryKey: ['recent-jobs'],
     queryFn: async () => {
       const response = await adJobApi.getJobs();
@@ -37,71 +40,12 @@ export default function Dashboard() {
     },
   });
 
+  const recentJobs = recentJobsResponse?.data?.items || [];
+
   return (
     <div className="space-y-6">
       {/* WhatsApp Connection Status */}
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <div className="sm:flex sm:items-start sm:justify-between">
-            <div className="w-full">
-              <h3 className="text-base font-semibold leading-6 text-gray-900">
-                WhatsApp Connection Status
-              </h3>
-              <div className="mt-2">
-                {/* Debug info */}
-                {process.env.NODE_ENV === 'development' && (
-                  <pre className="text-xs text-gray-500 mb-4">
-                    {JSON.stringify({ wsStatus }, null, 2)}
-                  </pre>
-                )}
-
-                {wsStatus.qrCode ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <ClockIcon className="h-5 w-5 text-yellow-500" />
-                      <span className="font-medium">WhatsApp authentication required</span>
-                    </div>
-                    <div className="flex flex-col items-center justify-center lg:flex-row lg:items-start lg:gap-8">
-                      <WhatsAppQRCode 
-                        qrCode={wsStatus.qrCode}
-                        onRefresh={() => {
-                          console.log('[Dashboard] QR code refresh requested');
-                          // The client will automatically refresh when disconnected
-                        }} 
-                      />
-                      <div className="mt-4 lg:mt-0 max-w-sm text-sm text-gray-500">
-                        <h4 className="font-semibold mb-2">Having trouble?</h4>
-                        <ul className="space-y-2 list-disc pl-4">
-                          <li>Make sure you have the latest version of WhatsApp installed on your phone</li>
-                          <li>Check your internet connection</li>
-                          <li>Try refreshing the QR code if it expires</li>
-                          <li>Make sure you're using the primary device with your WhatsApp account</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                ) : wsStatus.isConnected ? (
-                  <div className="max-w-xl text-sm text-gray-500">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                      <span className="font-medium">Connected and ready to send messages</span>
-                    </div>
-                    <p>Your WhatsApp account is connected and ready to use. You can now send messages and manage your campaigns.</p>
-                  </div>
-                ) : (
-                  <div className="max-w-xl text-sm text-gray-500">
-                    <div className="flex items-center gap-2 mb-2">
-                      <ExclamationCircleIcon className="h-5 w-5 text-red-500" />
-                      <span className="font-medium">Initializing WhatsApp connection</span>
-                    </div>
-                    <p>Please wait while we establish a connection to WhatsApp. This should only take a few moments...</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <WhatsAppStatus />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -117,7 +61,7 @@ export default function Dashboard() {
                     Pending Approval
                   </dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {pendingJobs?.length || 0}
+                    {pendingJobs.length}
                   </dd>
                 </dl>
               </div>
@@ -153,7 +97,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {recentJobs?.slice(0, 5).map((job) => (
+                    {recentJobs.slice(0, 5).map((job: AdJob) => (
                       <tr key={job.id}>
                         <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
                           Template #{job.templateId}

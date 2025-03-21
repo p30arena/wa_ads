@@ -1,4 +1,5 @@
 import { WSEventType, WSMessage } from '@/shared/types/websocket';
+export type { WSEventType };
 import { EventEmitter } from 'events';
 
 const debug = (message: string, ...args: any[]) => {
@@ -14,6 +15,7 @@ const debugError = (message: string, ...args: any[]) => {
 };
 
 export class WebSocketService extends EventEmitter {
+  private static instance: WebSocketService | null = null;
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -21,11 +23,20 @@ export class WebSocketService extends EventEmitter {
   private connectionStartTime: number = 0;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private messageQueue: { type: WSEventType; data: any }[] = [];
+  private url: string;
 
-  constructor(private url: string) {
+  private constructor(url: string) {
     super();
+    this.url = url;
     debug('Initializing WebSocket service', { url });
     this.connect();
+  }
+
+  public static getInstance(url: string): WebSocketService {
+    if (!WebSocketService.instance) {
+      WebSocketService.instance = new WebSocketService(url);
+    }
+    return WebSocketService.instance;
   }
 
   private connect() {

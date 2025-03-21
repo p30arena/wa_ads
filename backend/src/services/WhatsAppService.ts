@@ -1,4 +1,5 @@
 import { Client, LocalAuth, Chat, Contact } from 'whatsapp-web.js';
+import { WSEventType } from '@shared/types/websocket';
 import { WebSocketManager } from './WebSocketManager';
 import { RateLimiterService } from './RateLimiterService';
 import { EventEmitter } from 'events';
@@ -49,10 +50,13 @@ export class WhatsAppService extends EventEmitter {
   private groups: Map<string, GroupData> = new Map();
   private initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout' = 'none';
   private initializationError: string | null = null;
+  private stateCheckInterval: NodeJS.Timeout | null = null;
+  private readonly STATE_CHECK_INTERVAL = 5000; // Check every 5 seconds
   constructor(wsManager: WebSocketManager, { currentVersion }: { currentVersion?: string }) {
     super();
     this.wsManager = wsManager;
     this.rateLimiter = new RateLimiterService();
+    this.startStateChecks();
     this.client = new Client({
       takeoverOnConflict: true,
       authStrategy: new LocalAuth(),
@@ -87,6 +91,56 @@ export class WhatsAppService extends EventEmitter {
         message: `Rate limit reached for ${phoneNumber}. Cooling down until ${new Date(cooldownUntil).toLocaleString()}`
       });
     });
+  }
+
+  private startStateChecks() {
+    if (this.stateCheckInterval) {
+      clearInterval(this.stateCheckInterval);
+    }
+
+    this.stateCheckInterval = setInterval(() => {
+      const state = this.getStatus();
+      this.wsManager.broadcast('whatsapp:state' as WSEventType, state);
+    }, this.STATE_CHECK_INTERVAL);
+  }
+
+  private stopStateChecks() {
+    if (this.stateCheckInterval) {
+      clearInterval(this.stateCheckInterval);
+      this.stateCheckInterval = null;
+    }
+  }
+
+  private async handleRetry() {
+    try {
+      console.log('[WhatsAppService] Retrying WhatsApp initialization...');
+      // Destroy the existing client
+      await this.client.destroy();
+      // Create a new client instance
+      this.client = new Client({
+        takeoverOnConflict: true,
+        authStrategy: new LocalAuth(),
+        puppeteer: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-extensions'
+          ]
+        }
+      });
+      // Set up event listeners and initialize
+      this.setupEventListeners();
+      await this.initialize();
+    } catch (error) {
+      console.error('[WhatsAppService] Retry failed:', error);
+      this.wsManager.broadcast('whatsapp:status', {
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error during retry',
+        timestamp: new Date()
+      });
+    }
   }
 
   private setupEventListeners() {
@@ -149,6 +203,7 @@ export class WhatsAppService extends EventEmitter {
     this.client.on('disconnected', () => {
       console.log('[WhatsAppService] WhatsApp client disconnected');
       this.isReady = false;
+      this.stopStateChecks(); // Stop state checks when disconnected
       this.contacts.clear();
       this.groups.clear();
       // Don't clear QR code on disconnect to avoid flashing
@@ -417,12 +472,14 @@ export class WhatsAppService extends EventEmitter {
     qrCode: string | null;
     initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
     initializationError: string | null;
+    timestamp: number;
   } {
     return {
       connected: this.isReady,
       qrCode: this.currentQRCode,
       initializationStatus: this.initializationStatus,
-      initializationError: this.initializationError
+      initializationError: this.initializationError,
+      timestamp: Date.now()
     };
   }
 }

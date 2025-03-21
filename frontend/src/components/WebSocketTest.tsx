@@ -35,8 +35,8 @@ export function WebSocketTest() {
 
         <div>
           <span className="font-semibold">WhatsApp Status: </span>
-          <span className={status.isConnected ? 'text-green-600' : 'text-red-600'}>
-            {status.isConnected ? 'Connected' : 'Disconnected'}
+          <span className={status.connected ? 'text-green-600' : 'text-red-600'}>
+            {status.connected ? 'Connected' : 'Disconnected'}
           </span>
         </div>
 
