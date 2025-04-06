@@ -1,0 +1,97 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/whatsapp-ads.sqlite"
+}
+
+model User {
+  id      Int     @id @default(autoincrement())
+  name    String
+  phone   String
+  session String?
+  adJobs  AdJob[]
+}
+
+model ContactGroup {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  groupId   String?  @map("group_id")
+  type      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@map("contacts_groups")
+}
+
+model PhoneBook {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  groupName String?  @map("group_name")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@map("phone_book")
+}
+
+model MessageTemplate {
+  id           Int      @id @default(autoincrement())
+  title        String
+  messages     String   // Will be handled in code as comma-separated values
+  messageIds   String?  // Will be handled in code as comma-separated values
+  isSentToSelf Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+  adJobs       AdJob[]
+
+  @@map("message_templates")
+}
+
+model AdJob {
+  id              Int             @id @default(autoincrement())
+  userId          Int
+  user            User            @relation(fields: [userId], references: [id])
+  templateId      Int
+  messageTemplate MessageTemplate @relation(fields: [templateId], references: [id])
+  status          String
+  audience        String
+  messagesSent    Int             @default(0)
+  messagesDelivered Int           @default(0)
+  schedule        String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now())
+  moderationLogs  ModerationLog[]
+
+  @@map("ad_jobs")
+}
+
+model ModerationLog {
+  id         Int      @id @default(autoincrement())
+  jobId      Int
+  adJob      AdJob    @relation(fields: [jobId], references: [id])
+  moderator  String
+  action     String
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@map("moderation_logs")
+}
+
+model AudienceGroup {
+  id        Int      @id @default(autoincrement())
+  name      String
+  contacts  String   // Will be handled in code as comma-separated values
+  groups    String   // Will be handled in code as comma-separated values
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@map("audience_groups")
+}

@@ -1,7 +1,7 @@
-import WebSocket, { Server as WebSocketServer } from 'ws';
+import * as WebSocket from 'ws';
+import { Server as WebSocketServer } from 'ws';
 import { Server } from 'http';
-import { AdJob } from '../entities/AdJob';
-import { ModerationLog } from '../entities/ModerationLog';
+import { AdJob, ModerationLog } from '@prisma/client';
 
 export type WebSocketMessage = {
   type: 'whatsapp_status' | 'ad_job_update' | 'moderation_update';

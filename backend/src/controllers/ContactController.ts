@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createApi, endpoint } from 'express-zod-api';
+import { defaultEndpointsFactory } from 'express-zod-api';
 import { WhatsAppService } from '../services/WhatsAppService';
 
 const contactFilterSchema = z.object({
@@ -10,9 +10,8 @@ const contactFilterSchema = z.object({
 });
 
 export const contactEndpoints = {
-  listContacts: endpoint({
+  listContacts: defaultEndpointsFactory.build({
     method: 'get',
-    path: '/contacts',
     input: contactFilterSchema,
     output: z.object({
       contacts: z.array(z.object({
@@ -28,10 +27,10 @@ export const contactEndpoints = {
       page: z.number(),
       pageSize: z.number(),
     }),
-    handler: async ({ input, options }) => {
+    handler: async ({ input, options }: { input: z.infer<typeof contactFilterSchema>, options: any }) => {
       const whatsapp = options.whatsapp as WhatsAppService;
       
-      if (!whatsapp.isReady()) {
+      if (!whatsapp.isConnected()) {
         throw new Error('WhatsApp client is not ready');
       }
 
@@ -67,18 +66,17 @@ export const contactEndpoints = {
     },
   }),
 
-  importContacts: endpoint({
+  syncContacts: defaultEndpointsFactory.build({
     method: 'post',
-    path: '/contacts/import',
     input: z.object({}),
     output: z.object({
       imported: z.number(),
       message: z.string(),
     }),
-    handler: async ({ options }) => {
+    handler: async ({ options }: { options: any }) => {
       const whatsapp = options.whatsapp as WhatsAppService;
       
-      if (!whatsapp.isReady()) {
+      if (!whatsapp.isConnected()) {
         throw new Error('WhatsApp client is not ready');
       }
 
@@ -86,7 +84,7 @@ export const contactEndpoints = {
       
       return {
         imported,
-        message: \`Successfully imported \${imported} contacts\`,
+        message: `Successfully imported ${imported} contacts`,
       };
     },
   }),

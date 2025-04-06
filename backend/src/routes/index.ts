@@ -1,15 +1,25 @@
 import { Routing, defaultEndpointsFactory, Middleware } from 'express-zod-api';
 import { z } from 'zod';
-import { AdJob, AdJobStatus } from '../entities/AdJob';
-import { MessageTemplate } from '../entities/MessageTemplate';
-import { User } from '../entities/User';
-import { ModerationLog, ModerationAction } from '../entities/ModerationLog';
-import { ContactGroup } from '../entities/ContactGroup';
-import { PhoneBook } from '../entities/PhoneBook';
-import { AppDataSource } from '../config/database';
+import prisma from '../config/prisma';
 import { WhatsAppService } from '../services/WhatsAppService';
 import { WebSocketManager } from '../services/WebSocketManager';
-import { AudienceGroup } from '../entities/AudienceGroup'; // Import AudienceGroup entity
+
+// Define enums to replace the removed entity enums
+enum AdJobStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  RUNNING = 'running',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  STOPPED = 'stopped'
+}
+
+enum ModerationAction {
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  MODIFIED = 'modified'
+}
 
 const zBooleanInput = () => z.string().transform(s => s === "true" ? true : false);
 
@@ -223,14 +233,13 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() })),
           }),
           handler: async () => {
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const templates = await templateRepo.find({
-              order: { createdAt: 'DESC' },
+            const templates = await prisma.messageTemplate.findMany({
+              orderBy: { createdAt: 'desc' },
             });
             return { items: templates.map(t => ({
               id: t.id,
               title: t.title,
-              messages: t.messages,
+              messages: t.messages.split(','),
               createdAt: t.createdAt,
               updatedAt: t.updatedAt
             })) };
@@ -278,16 +287,16 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             const allMessageIds = [...textMessageIds, ...mediaMessageIds];
             
             // Create and save the template with message IDs
-            const repo = AppDataSource.getRepository(MessageTemplate);
-            const template = repo.create({
-              title: input.title,
-              messages: input.messages,
-              messageIds: allMessageIds,
-              isSentToSelf: true,
+            const savedTemplate = await prisma.messageTemplate.create({
+              data: {
+                title: input.title,
+                messages: input.messages.join(','),
+                messageIds: allMessageIds.join(','),
+                isSentToSelf: true,
+              }
             });
             
-            const result = await repo.save(template);
-            return { id: result.id };
+            return { id: savedTemplate.id };
           },
         }),
         update: e.build({
@@ -298,19 +307,32 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           }),
           output: messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() }),
           handler: async ({ input }) => {
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const template = await templateRepo.findOneBy({ id: input.id });
+            const template = await prisma.messageTemplate.findUnique({
+              where: { id: input.id }
+            });
             if (!template) {
               throw new Error('Template not found');
             }
             
             // Update fields
-            template.title = input.template.title;
-            template.messages = input.template.messages;
-            template.updatedAt = new Date();
+            await prisma.messageTemplate.update({
+              where: { id: input.id },
+              data: {
+                title: input.template.title,
+                messages: input.template.messages.join(','),
+                updatedAt: new Date(),
+              }
+            });
             
-            const savedTemplate = await templateRepo.save(template);
-            return savedTemplate;
+            return {
+              id: template.id,
+              title: input.template.title,
+              messages: input.template.messages,
+              messageIds: template.messageIds ? template.messageIds.split(',') : [],
+              isSentToSelf: template.isSentToSelf,
+              createdAt: template.createdAt,
+              updatedAt: new Date(),
+            };
           },
         }),
         delete: e.build({
@@ -322,8 +344,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             success: z.boolean(),
           }),
           handler: async ({ input }) => {
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            await templateRepo.delete(input.id);
+            await prisma.messageTemplate.delete({
+              where: { id: input.id }
+            });
             return { success: true };
           },
         }),
@@ -338,19 +361,15 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(adJobSchema.extend({ id: z.number() })),
           }),
           handler: async ({ input }) => {
-            const adJobRepo = AppDataSource.getRepository(AdJob);
-            const query = adJobRepo.createQueryBuilder('adJob');
-            
-            if (input.status) {
-              query.where('adJob.status = :status', { status: input.status });
-            }
-            
-            const jobs = await query.getMany();
+            const query = prisma.adJob.findMany({
+              where: input.status ? { status: input.status } : {},
+            });
+            const jobs = await query;
             const items = jobs.map(job => ({
               id: job.id,
               templateId: job.templateId,
               audience: job.audience,
-              status: job.status,
+              status: job.status as "pending" | "approved" | "rejected" | "running" | "completed" | "failed" | "stopped",
             }));
             return { items };
           },
@@ -365,8 +384,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             }
             
             // Get the message template with stored message IDs
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const template = await templateRepo.findOneBy({ id: input.templateId });
+            const template = await prisma.messageTemplate.findUnique({
+              where: { id: input.templateId }
+            });
             
             if (!template) {
               throw new Error('Template not found');
@@ -377,14 +397,16 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             }
             
             // Create the ad job
-            const adJobRepo = AppDataSource.getRepository(AdJob);
-            const adJob = adJobRepo.create({
-              templateId: input.templateId,
-              audience: input.audience,
-              status: 'pending' as AdJobStatus,
+            const savedJob = await prisma.adJob.create({
+              data: {
+                userId: 1, // Default user for now
+                templateId: input.templateId,
+                status: 'pending',
+                audience: input.audience,
+                messagesSent: 0,
+                messagesDelivered: 0
+              }
             });
-            
-            const savedJob = await adJobRepo.save(adJob);
             
             // Broadcast ad job creation
             options.wsManager?.broadcast('ad:status', {
@@ -412,8 +434,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             }
             
             // Get the ad job
-            const adJobRepo = AppDataSource.getRepository(AdJob);
-            const adJob = await adJobRepo.findOneBy({ id: input.id });
+            const adJob = await prisma.adJob.findUnique({
+              where: { id: input.id }
+            });
             
             if (!adJob) {
               throw new Error('Ad job not found');
@@ -424,8 +447,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             }
             
             // Get the message template with stored message IDs
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const template = await templateRepo.findOneBy({ id: adJob.templateId });
+            const template = await prisma.messageTemplate.findUnique({
+              where: { id: adJob.templateId }
+            });
             
             if (!template) {
               throw new Error('Template not found');
@@ -436,36 +460,33 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             }
             
             // Update job status to running
-            adJob.status = 'running';
-            await adJobRepo.save(adJob);
+            await prisma.adJob.update({
+              where: { id: input.id },
+              data: { status: 'running' }
+            });
             
             // Broadcast status update
             options.wsManager?.broadcast('ad:status', {
               id: adJob.id,
-              status: adJob.status,
+              status: 'running',
               templateId: adJob.templateId,
               audience: adJob.audience,
             });
             
             try {
               // Parse audience (could be a contact, group, or audience group ID)
-              const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup);
-              // Try to parse the audience as a number for audience group lookup
-              let audienceId: number | null = null;
-              try {
-                audienceId = parseInt(adJob.audience);
-              } catch (e) {
-                // If parsing fails, it's not a numeric ID
-                audienceId = null;
+              const audienceGroup = await prisma.audienceGroup.findUnique({
+                where: { id: Number(adJob.audience) }
+              });
+              if (!audienceGroup) {
+                throw new Error(`Audience group with ID ${adJob.audience} not found`);
               }
-              
-              const audienceGroup = audienceId ? await audienceGroupRepo.findOneBy({ id: audienceId }) : null;
-              
+            
               let recipients: string[] = [];
               
               if (audienceGroup) {
                 // If it's an audience group, get all contacts and groups
-                recipients = [...audienceGroup.contacts];
+                recipients = audienceGroup.contacts.split(',');
                 // Groups would be handled differently
               } else {
                 // Assume it's a single recipient
@@ -478,7 +499,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               
               for (const recipient of recipients) {
                 try {
-                  await options.whatsappService.forwardStoredMessages(recipient, template.messageIds);
+                  await options.whatsappService.forwardStoredMessages(recipient, template.messageIds.split(','));
                   successCount++;
                 } catch (error) {
                   console.error(`Failed to send to ${recipient}:`, error);
@@ -491,14 +512,21 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               
               // Update job status based on results
               if (failureCount === 0) {
-                adJob.status = 'completed';
+                await prisma.adJob.update({
+                  where: { id: input.id },
+                  data: { status: 'completed' }
+                });
               } else if (successCount === 0) {
-                adJob.status = 'failed';
+                await prisma.adJob.update({
+                  where: { id: input.id },
+                  data: { status: 'failed' }
+                });
               } else {
-                adJob.status = 'completed'; // Partial success still marked as completed
+                await prisma.adJob.update({
+                  where: { id: input.id },
+                  data: { status: 'completed' } // Partial success still marked as completed
+                });
               }
-              
-              await adJobRepo.save(adJob);
               
               // Broadcast final status
               options.wsManager?.broadcast('ad:status', {
@@ -514,13 +542,15 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               };
             } catch (error) {
               // Update job status to failed
-              adJob.status = 'failed';
-              await adJobRepo.save(adJob);
+              await prisma.adJob.update({
+                where: { id: input.id },
+                data: { status: 'failed' }
+              });
               
               // Broadcast failure
               options.wsManager?.broadcast('ad:status', {
                 id: adJob.id,
-                status: adJob.status,
+                status: 'failed',
                 templateId: adJob.templateId,
                 audience: adJob.audience,
               });
@@ -539,9 +569,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: userSchema,
           output: userSchema.extend({ id: z.number() }),
           handler: async ({ input }) => {
-            const userRepo = AppDataSource.getRepository(User);
-            const newUser = userRepo.create(input);
-            const [savedUser] = await userRepo.save(newUser);
+            const savedUser = await prisma.user.create({
+              data: input
+            });
             return {
               id: savedUser.id,
               name: savedUser.name,
@@ -557,8 +587,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(userSchema.extend({ id: z.number() })),
           }),
           handler: async () => {
-            const userRepo = AppDataSource.getRepository(User);
-            const users = await userRepo.find();
+            const users = await prisma.user.findMany();
             return {
               items: users.map(user => ({
                 id: user.id,
@@ -576,35 +605,51 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: moderationLogSchema,
           output: moderationLogSchema.extend({ id: z.number() }),
           handler: async ({ input, options }) => {
-            const moderationRepo = AppDataSource.getRepository(ModerationLog);
-            const adJobRepo = AppDataSource.getRepository(AdJob);
-            
-            // Update ad job status based on moderation action
-            const adJob = await adJobRepo.findOneBy({ id: input.jobId });
-            if (!adJob) {
+            // Validate job exists
+            const job = await prisma.adJob.findUnique({
+              where: { id: input.jobId }
+            });
+            if (!job) {
               throw new Error('Ad job not found');
             }
-            
-            adJob.status = input.action === 'approved' ? 'approved' : 'rejected';
-            const updatedJob = await adJobRepo.save(adJob);
-            
+
+            // Create moderation log
+            await prisma.moderationLog.create({
+              data: {
+                jobId: input.jobId,
+                moderator: input.moderator,
+                action: input.action,
+                notes: input.notes
+              }
+            });
+
+            // Update job status based on action
+            if (input.action === 'approved') {
+              await prisma.adJob.update({
+                where: { id: input.jobId },
+                data: { status: 'approved' }
+              });
+            } else if (input.action === 'rejected') {
+              await prisma.adJob.update({
+                where: { id: input.jobId },
+                data: { status: 'rejected' }
+              });
+            }
+
             // Broadcast moderation update
             options.wsManager?.broadcast('ad:status', {
-              id: updatedJob.id,
-              status: updatedJob.status,
+              id: job.id,
+              status: job.status,
               action: input.action,
               moderator: input.moderator,
             });
-            
-            // Create moderation log
-            const newLog = moderationRepo.create(input);
-            const [savedLog] = await moderationRepo.save(newLog);
+
             return {
-              id: savedLog.id,
-              jobId: savedLog.jobId,
-              moderator: savedLog.moderator,
-              action: savedLog.action,
-              notes: savedLog.notes,
+              id: job.id,
+              jobId: job.id,
+              moderator: input.moderator,
+              action: input.action,
+              notes: input.notes,
             };
           },
         }),
@@ -617,21 +662,17 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(moderationLogSchema.extend({ id: z.number() })),
           }),
           handler: async ({ input }) => {
-            const moderationRepo = AppDataSource.getRepository(ModerationLog);
-            const query = moderationRepo.createQueryBuilder('log');
-            
-            if (input.jobId) {
-              query.where('log.jobId = :jobId', { jobId: input.jobId });
-            }
-            
-            const logs = await query.getMany();
+            const query = prisma.moderationLog.findMany({
+              where: input.jobId ? { jobId: input.jobId } : {},
+            });
+            const logs = await query;
             return {
               items: logs.map(log => ({
                 id: log.id,
                 jobId: log.jobId,
                 moderator: log.moderator,
-                action: log.action,
-                notes: log.notes,
+                action: log.action as "approved" | "rejected" | "modified",
+                notes: log.notes || undefined,
               })),
             };
           },
@@ -643,18 +684,24 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: contactGroupSchema,
           output: contactGroupSchema.extend({ id: z.number() }),
           handler: async ({ input }) => {
-            const contactRepo = AppDataSource.getRepository(ContactGroup);
-            const newContact = contactRepo.create({
-              ...input,
-              type: 'contact',
+            const contacts = await prisma.contactGroup.findMany({
+              where: { type: 'contact' },
+              orderBy: { name: 'asc' }
             });
-            const [savedContact] = await contactRepo.save(newContact);
+            const savedContact = await prisma.contactGroup.create({
+              data: {
+                ...input,
+                type: 'contact',
+              }
+            });
+            
+            // Cast the type to match the expected output type
             return {
               id: savedContact.id,
               name: savedContact.name,
-              phone: savedContact.phone,
-              groupId: savedContact.groupId,
-              type: savedContact.type,
+              phone: savedContact.phone || undefined,
+              groupId: savedContact.groupId || undefined,
+              type: savedContact.type as "contact" | "group",
               isActive: savedContact.isActive,
             };
           },
@@ -669,25 +716,20 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(contactGroupSchema.extend({ id: z.number() })),
           }),
           handler: async ({ input }) => {
-            const contactRepo = AppDataSource.getRepository(ContactGroup);
-            const query = contactRepo.createQueryBuilder('contact');
-            
-            if (input.type) {
-              query.where('contact.type = :type', { type: input.type });
-            }
-            
-            if (input.isActive !== undefined) {
-              query.andWhere('contact.isActive = :isActive', { isActive: input.isActive });
-            }
-            
-            const contacts = await query.getMany();
+            const contacts = await prisma.contactGroup.findMany({
+              where: {
+                ...(input.type ? { type: input.type } : {}),
+                ...(input.isActive !== undefined ? { isActive: input.isActive } : {})
+              },
+              orderBy: { name: 'asc' }
+            });
             return {
               items: contacts.map(contact => ({
                 id: contact.id,
                 name: contact.name,
-                phone: contact.phone,
-                groupId: contact.groupId,
-                type: contact.type,
+                phone: contact.phone || undefined,
+                groupId: contact.groupId || undefined,
+                type: contact.type as "contact" | "group",
                 isActive: contact.isActive,
               })),
             };
@@ -700,17 +742,21 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: contactGroupSchema,
           output: contactGroupSchema.extend({ id: z.number() }),
           handler: async ({ input }) => {
-            const groupRepo = AppDataSource.getRepository(ContactGroup);
-            const newGroup = groupRepo.create({
-              ...input,
-              type: 'group',
+            const groups = await prisma.contactGroup.findMany({
+              where: { type: 'group' },
+              orderBy: { name: 'asc' }
             });
-            const [savedGroup] = await groupRepo.save(newGroup);
+            const savedGroup = await prisma.contactGroup.create({
+              data: {
+                ...input,
+                type: 'group',
+              }
+            });
             return {
               id: savedGroup.id,
               name: savedGroup.name,
-              groupId: savedGroup.groupId,
-              type: savedGroup.type,
+              groupId: savedGroup.groupId || undefined,
+              type: savedGroup.type as "contact" | "group",
               isActive: savedGroup.isActive,
             };
           },
@@ -724,21 +770,18 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(contactGroupSchema.extend({ id: z.number() })),
           }),
           handler: async ({ input }) => {
-            const groupRepo = AppDataSource.getRepository(ContactGroup);
-            const query = groupRepo.createQueryBuilder('group')
-              .where('group.type = :type', { type: 'group' });
-            
-            if (input.isActive !== undefined) {
-              query.andWhere('group.isActive = :isActive', { isActive: input.isActive });
-            }
-            
-            const groups = await query.getMany();
+            const groups = await prisma.contactGroup.findMany({
+              where: {
+                type: 'group',
+                ...(input.isActive !== undefined ? { isActive: input.isActive } : {})
+              }
+            });
             return {
-              items: groups.map(group => ({
+              items: groups.map((group: any) => ({
                 id: group.id,
                 name: group.name,
-                groupId: group.groupId,
-                type: group.type,
+                groupId: group.groupId || undefined,
+                type: group.type as "contact" | "group",
                 isActive: group.isActive,
               })),
             };
@@ -751,14 +794,14 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: phoneBookSchema,
           output: phoneBookSchema.extend({ id: z.number() }),
           handler: async ({ input }) => {
-            const phoneBookRepo = AppDataSource.getRepository(PhoneBook);
-            const newEntry = phoneBookRepo.create(input);
-            const [savedEntry] = await phoneBookRepo.save(newEntry);
+            const savedEntry = await prisma.phoneBook.create({
+              data: input
+            });
             return {
               id: savedEntry.id,
               name: savedEntry.name,
               phone: savedEntry.phone,
-              groupName: savedEntry.groupName,
+              groupName: savedEntry.groupName || undefined,
             };
           },
         }),
@@ -771,20 +814,20 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             items: z.array(phoneBookSchema.extend({ id: z.number() })),
           }),
           handler: async ({ input }) => {
-            const phoneBookRepo = AppDataSource.getRepository(PhoneBook);
-            const query = phoneBookRepo.createQueryBuilder('entry');
-            
+            let entries;
             if (input.groupName) {
-              query.where('entry.groupName = :groupName', { groupName: input.groupName });
+              entries = await prisma.phoneBook.findMany({
+                where: { groupName: input.groupName }
+              });
+            } else {
+              entries = await prisma.phoneBook.findMany();
             }
-            
-            const entries = await query.getMany();
             return {
               items: entries.map(entry => ({
                 id: entry.id,
                 name: entry.name,
                 phone: entry.phone,
-                groupName: entry.groupName,
+                groupName: entry.groupName || undefined,
               })),
             };
           },
@@ -800,19 +843,36 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           }),
           output: audienceGroupSchema, // Update output schema
           handler: async ({ input }) => {
-            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
-            const audienceGroup = audienceGroupRepo.create(input);
-            const savedGroup = await audienceGroupRepo.save(audienceGroup) as unknown as AudienceGroup;
-            return savedGroup;
+            const savedGroup = await prisma.audienceGroup.create({
+              data: {
+                name: input.name,
+                contacts: input.contacts.join(','),
+                groups: input.groups.join(',')
+              }
+            });
+            
+            // Convert string fields to arrays for the response
+            return {
+              ...savedGroup,
+              contacts: savedGroup.contacts.split(','),
+              groups: savedGroup.groups.split(',')
+            };
           },
         }),
         list: e.build({
           method: 'get',
           output: z.object({ items: z.array(audienceGroupSchema) }), // Update output schema
           handler: async () => {
-            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
-            const groups = await audienceGroupRepo.find();
-            return { items: groups };
+            const groups = await prisma.audienceGroup.findMany();
+            
+            // Convert string fields to arrays for the response
+            const formattedGroups = groups.map(group => ({
+              ...group,
+              contacts: group.contacts.split(','),
+              groups: group.groups.split(',')
+            }));
+            
+            return { items: formattedGroups };
           },
         }),
         update: e.build({
@@ -820,25 +880,29 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: z.object({ id: z.string(), name: z.string().optional(), contacts: z.array(z.string()).optional(), groups: z.array(z.string()).optional() }),
           output: z.object({ success: z.boolean() }),
           handler: async ({ input }) => {
-            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
-            const group = await audienceGroupRepo.findOneBy({ id: input.id });
+            const group = await prisma.audienceGroup.findUnique({
+              where: { id: Number(input.id) }
+            });
             if (!group) {
               throw new Error('Audience group not found');
             }
             
-            // Update fields
+            // Prepare update data
+            const updateData: any = { updatedAt: new Date() };
             if (input.name) {
-              group.name = input.name;
+              updateData.name = input.name;
             }
             if (input.contacts) {
-              group.contacts = input.contacts;
+              updateData.contacts = input.contacts.join(',');
             }
             if (input.groups) {
-              group.groups = input.groups;
+              updateData.groups = input.groups.join(',');
             }
-            group.updatedAt = new Date();
             
-            await audienceGroupRepo.save(group);
+            await prisma.audienceGroup.update({
+              where: { id: Number(input.id) },
+              data: updateData
+            });
             return { success: true };
           },
         }),
@@ -847,8 +911,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           input: z.object({ id: z.string() }),
           output: z.object({ success: z.boolean() }),
           handler: async ({ input }) => {
-            const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup); // Get AudienceGroup repository
-            await audienceGroupRepo.delete(input.id);
+            await prisma.audienceGroup.delete({
+              where: { id: Number(input.id) }
+            });
             return { success: true };
           },
         }),

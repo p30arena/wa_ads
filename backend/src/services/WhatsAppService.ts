@@ -1,9 +1,9 @@
 import { Client, LocalAuth, Chat, Contact } from 'whatsapp-web.js';
-import { WSEventType } from '@shared/types/websocket';
+import { WSEventType } from '../shared/types/websocket';
 import { WebSocketManager } from './WebSocketManager';
 import { RateLimiterService } from './RateLimiterService';
 import { EventEmitter } from 'events';
-import qrcode from 'qrcode-terminal';
+import * as qrcode from 'qrcode-terminal';
 
 interface ExtendedChat extends Chat {
   participants: Array<{

@@ -1,5 +1,5 @@
 import { createConfig, createServer as createZodServer } from 'express-zod-api';
-import { AppDataSource } from './config/database';
+import prisma from './config/prisma';
 import { WebSocketManager } from './services/WebSocketManager';
 import { WhatsAppService } from './services/WhatsAppService';
 import { createRoutes } from './routes';
@@ -59,8 +59,8 @@ const startServer = async () => {
       },
     });
 
-    // Initialize database
-    await AppDataSource.initialize();
+    // Initialize database connection
+    await prisma.$connect();
     console.log('Database connection established');
 
     const wa: { whatsappService: WhatsAppService | null, wsManager: WebSocketManager | null } = { whatsappService: null, wsManager: null };
