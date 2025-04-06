@@ -450,7 +450,116 @@ export class WhatsAppService extends EventEmitter {
     return cleaned.startsWith('1') ? `${cleaned}@c.us` : `1${cleaned}@c.us`;
   }
 
+  /**
+   * Get the phone number of the currently logged-in user
+   */
+  public async getSelfNumber(): Promise<string> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+    
+    try {
+      // Get the client's own phone number
+      // @ts-ignore - The client API might not have proper typings for all methods
+      const info = await this.client.info;
+      return info.wid._serialized.replace('@c.us', '');
+    } catch (error) {
+      console.error('Failed to get self number:', error);
+      throw error;
+    }
+  }
 
+  /**
+   * Send messages to self and return their message IDs for later reuse
+   */
+  public async sendMessagesToSelf(messages: string[]): Promise<string[]> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      const selfNumber = await this.getSelfNumber();
+      const formattedNumber = this.formatPhoneNumber(selfNumber);
+      const messageIds: string[] = [];
+      
+      // Send all messages in sequence and collect their IDs
+      for (const message of messages) {
+        const sentMessage = await this.client.sendMessage(formattedNumber, message);
+        messageIds.push(sentMessage.id._serialized);
+      }
+      
+      return messageIds;
+    } catch (error) {
+      console.error('Failed to send messages to self:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send media messages to self and return their message IDs for later reuse
+   */
+  public async sendMediaMessagesToSelf(mediaMessages: Array<{url: string, caption?: string}>): Promise<string[]> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      const selfNumber = await this.getSelfNumber();
+      const formattedNumber = this.formatPhoneNumber(selfNumber);
+      const messageIds: string[] = [];
+      
+      // Send all media messages in sequence and collect their IDs
+      for (const { url, caption } of mediaMessages) {
+        const sentMedia = await this.client.sendMessage(formattedNumber, url);
+        messageIds.push(sentMedia.id._serialized);
+        
+        if (caption) {
+          const sentCaption = await this.client.sendMessage(formattedNumber, caption);
+          messageIds.push(sentCaption.id._serialized);
+        }
+      }
+      
+      return messageIds;
+    } catch (error) {
+      console.error('Failed to send media messages to self:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Forward stored messages using their IDs
+   */
+  public async forwardStoredMessages(to: string, messageIds: string[]): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      const formattedNumber = this.formatPhoneNumber(to);
+      
+      // Check rate limit for all messages
+      for (let i = 0; i < messageIds.length; i++) {
+        const canSend = await this.rateLimiter.canSendMessage(formattedNumber);
+        if (!canSend) {
+          const cooldownTime = this.rateLimiter.getCooldownTime(formattedNumber);
+          throw new Error(`Rate limit reached. Please wait ${Math.ceil(cooldownTime! / 60000)} minutes before sending to ${to}`);
+        }
+      }
+
+      // Forward all messages in sequence
+      for (const messageId of messageIds) {
+        // Use message ID to get the message and then forward it
+        // @ts-ignore - The client API might not have proper typings
+        const message = await this.client.getMessageById(messageId);
+        if (message) {
+          await message.forward(formattedNumber);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to forward stored messages:', error);
+      throw error;
+    }
+  }
 
   public async getChats() {
     if (!this.isReady) {

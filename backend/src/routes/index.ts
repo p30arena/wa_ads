@@ -49,6 +49,11 @@ const messageTemplateSchema = z.object({
   messages: z.array(z.string()),
 });
 
+const messageTemplateWithIdsSchema = messageTemplateSchema.extend({
+  messageIds: z.array(z.string()).optional(),
+  isSentToSelf: z.boolean().optional(),
+});
+
 const userSchema = z.object({
   name: z.string(),
   phone: z.string(),
@@ -234,12 +239,55 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
         create: e.build({
           method: 'post',
           input: messageTemplateSchema,
-          output: messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() }),
-          handler: async ({ input }) => {
-            const templateRepo = AppDataSource.getRepository(MessageTemplate);
-            const template = templateRepo.create(input);
-            const savedTemplate = await templateRepo.save(template) as unknown as MessageTemplate;
-            return savedTemplate;
+          output: z.object({ id: z.number() }),
+          handler: async ({ input, options }) => {
+            if (!options.whatsappService || !options.whatsappService.isConnected()) {
+              throw new Error('WhatsApp client is not connected');
+            }
+
+            // Parse messages to separate text and media messages
+            const textMessages: string[] = [];
+            const mediaMessages: Array<{url: string, caption?: string}> = [];
+            
+            for (const message of input.messages) {
+              try {
+                const parsed = JSON.parse(message);
+                if (parsed.type === 'media') {
+                  mediaMessages.push({
+                    url: parsed.content,
+                    caption: parsed.caption
+                  });
+                } else {
+                  textMessages.push(parsed.content);
+                }
+              } catch (e) {
+                // If parsing fails, treat as plain text
+                textMessages.push(message);
+              }
+            }
+
+            // Send messages to self and collect IDs
+            const textMessageIds = textMessages.length > 0 
+              ? await options.whatsappService.sendMessagesToSelf(textMessages)
+              : [];
+              
+            const mediaMessageIds = mediaMessages.length > 0
+              ? await options.whatsappService.sendMediaMessagesToSelf(mediaMessages)
+              : [];
+            
+            const allMessageIds = [...textMessageIds, ...mediaMessageIds];
+            
+            // Create and save the template with message IDs
+            const repo = AppDataSource.getRepository(MessageTemplate);
+            const template = repo.create({
+              title: input.title,
+              messages: input.messages,
+              messageIds: allMessageIds,
+              isSentToSelf: true,
+            });
+            
+            const result = await repo.save(template);
+            return { id: result.id };
           },
         }),
         update: e.build({
@@ -280,32 +328,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           },
         }),
       },
-      ads: {
-        create: e.build({
-          method: 'post',
-          input: adJobSchema,
-          output: adJobSchema.extend({ id: z.number() }),
-          handler: async ({ input, options }) => {
-            const adJobRepo = AppDataSource.getRepository(AdJob);
-            const newJob = adJobRepo.create(input);
-            const [savedJob] = await adJobRepo.save(newJob);
-            
-            // Broadcast ad job creation
-            options.wsManager?.broadcast('ad:status', {
-              id: savedJob.id,
-              status: savedJob.status,
-              templateId: savedJob.templateId,
-              audience: savedJob.audience,
-            });
-            
-            return {
-              id: savedJob.id,
-              templateId: savedJob.templateId,
-              audience: savedJob.audience,
-              status: savedJob.status,
-            };
-          },
-        }),
+      adJobs: {
         list: e.build({
           method: 'get',
           input: z.object({
@@ -330,6 +353,183 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               status: job.status,
             }));
             return { items };
+          },
+        }),
+        create: e.build({
+          method: 'post',
+          input: adJobSchema,
+          output: z.object({ id: z.number() }),
+          handler: async ({ input, options }) => {
+            if (!options.whatsappService || !options.whatsappService.isConnected()) {
+              throw new Error('WhatsApp client is not connected');
+            }
+            
+            // Get the message template with stored message IDs
+            const templateRepo = AppDataSource.getRepository(MessageTemplate);
+            const template = await templateRepo.findOneBy({ id: input.templateId });
+            
+            if (!template) {
+              throw new Error('Template not found');
+            }
+            
+            if (!template.isSentToSelf || !template.messageIds || template.messageIds.length === 0) {
+              throw new Error('Template messages have not been sent to self yet');
+            }
+            
+            // Create the ad job
+            const adJobRepo = AppDataSource.getRepository(AdJob);
+            const adJob = adJobRepo.create({
+              templateId: input.templateId,
+              audience: input.audience,
+              status: 'pending' as AdJobStatus,
+            });
+            
+            const savedJob = await adJobRepo.save(adJob);
+            
+            // Broadcast ad job creation
+            options.wsManager?.broadcast('ad:status', {
+              id: savedJob.id,
+              status: savedJob.status,
+              templateId: savedJob.templateId,
+              audience: savedJob.audience,
+            });
+            
+            return { id: savedJob.id };
+          },
+        }),
+        process: e.build({
+          method: 'post',
+          input: z.object({
+            id: z.number(),
+          }),
+          output: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+          handler: async ({ input, options }) => {
+            if (!options.whatsappService || !options.whatsappService.isConnected()) {
+              throw new Error('WhatsApp client is not connected');
+            }
+            
+            // Get the ad job
+            const adJobRepo = AppDataSource.getRepository(AdJob);
+            const adJob = await adJobRepo.findOneBy({ id: input.id });
+            
+            if (!adJob) {
+              throw new Error('Ad job not found');
+            }
+            
+            if (adJob.status !== 'pending' && adJob.status !== 'approved') {
+              throw new Error(`Cannot process ad job with status ${adJob.status}`);
+            }
+            
+            // Get the message template with stored message IDs
+            const templateRepo = AppDataSource.getRepository(MessageTemplate);
+            const template = await templateRepo.findOneBy({ id: adJob.templateId });
+            
+            if (!template) {
+              throw new Error('Template not found');
+            }
+            
+            if (!template.isSentToSelf || !template.messageIds || template.messageIds.length === 0) {
+              throw new Error('Template messages have not been sent to self yet');
+            }
+            
+            // Update job status to running
+            adJob.status = 'running';
+            await adJobRepo.save(adJob);
+            
+            // Broadcast status update
+            options.wsManager?.broadcast('ad:status', {
+              id: adJob.id,
+              status: adJob.status,
+              templateId: adJob.templateId,
+              audience: adJob.audience,
+            });
+            
+            try {
+              // Parse audience (could be a contact, group, or audience group ID)
+              const audienceGroupRepo = AppDataSource.getRepository(AudienceGroup);
+              // Try to parse the audience as a number for audience group lookup
+              let audienceId: number | null = null;
+              try {
+                audienceId = parseInt(adJob.audience);
+              } catch (e) {
+                // If parsing fails, it's not a numeric ID
+                audienceId = null;
+              }
+              
+              const audienceGroup = audienceId ? await audienceGroupRepo.findOneBy({ id: audienceId }) : null;
+              
+              let recipients: string[] = [];
+              
+              if (audienceGroup) {
+                // If it's an audience group, get all contacts and groups
+                recipients = [...audienceGroup.contacts];
+                // Groups would be handled differently
+              } else {
+                // Assume it's a single recipient
+                recipients = [adJob.audience];
+              }
+              
+              // Send messages to all recipients using stored message IDs
+              let successCount = 0;
+              let failureCount = 0;
+              
+              for (const recipient of recipients) {
+                try {
+                  await options.whatsappService.forwardStoredMessages(recipient, template.messageIds);
+                  successCount++;
+                } catch (error) {
+                  console.error(`Failed to send to ${recipient}:`, error);
+                  failureCount++;
+                }
+                
+                // Add a small delay between sends to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              
+              // Update job status based on results
+              if (failureCount === 0) {
+                adJob.status = 'completed';
+              } else if (successCount === 0) {
+                adJob.status = 'failed';
+              } else {
+                adJob.status = 'completed'; // Partial success still marked as completed
+              }
+              
+              await adJobRepo.save(adJob);
+              
+              // Broadcast final status
+              options.wsManager?.broadcast('ad:status', {
+                id: adJob.id,
+                status: adJob.status,
+                templateId: adJob.templateId,
+                audience: adJob.audience,
+              });
+              
+              return {
+                success: true,
+                message: `Messages sent to ${successCount} recipients. ${failureCount > 0 ? `Failed for ${failureCount} recipients.` : ''}`
+              };
+            } catch (error) {
+              // Update job status to failed
+              adJob.status = 'failed';
+              await adJobRepo.save(adJob);
+              
+              // Broadcast failure
+              options.wsManager?.broadcast('ad:status', {
+                id: adJob.id,
+                status: adJob.status,
+                templateId: adJob.templateId,
+                audience: adJob.audience,
+              });
+              
+              return {
+                success: false,
+                message: `Failed to process ad job: ${error instanceof Error ? error.message : String(error)}`
+              };
+            }
           },
         }),
       },

@@ -166,6 +166,9 @@ export function MessageTemplateEditor({
         >
           Save Template
         </button>
+        <p className="mt-2 text-xs text-gray-500 text-center">
+          When you save a template, messages will be sent to yourself first and their IDs stored for efficient batch sending.
+        </p>
       </div>
     </div>
   );

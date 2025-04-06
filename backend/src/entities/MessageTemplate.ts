@@ -11,6 +11,12 @@ export class MessageTemplate {
   @Column({ type: "simple-array" })
   messages!: string[];
 
+  @Column({ type: "simple-array", nullable: true })
+  messageIds!: string[];
+
+  @Column({ default: false })
+  isSentToSelf!: boolean;
+
   @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
   createdAt!: Date;
 
