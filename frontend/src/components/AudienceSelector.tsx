@@ -49,7 +49,7 @@ export function AudienceSelector({
 
   useEffect(() => {
     // Extract unique group names from phone book entries
-    const groups = [...new Set(phoneBook.map((entry) => entry.groupName).filter(Boolean))];
+    const groups = [...new Set(phoneBook.map((entry) => entry.groupName).filter((group): group is string => group !== undefined && group !== null))];
     setPhoneBookGroups(groups);
   }, [phoneBook]);
 

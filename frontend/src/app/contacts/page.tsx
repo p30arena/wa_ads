@@ -7,7 +7,7 @@ import { ContactList } from '@/components/contacts/ContactList';
 import { GroupList } from '@/components/contacts/GroupList';
 import { Button } from '@/components/ui/button';
 import { PlusIcon, SearchIcon } from 'lucide-react';
-import { ContactFilter, GroupFilter } from '@shared/types/contacts';
+import { ContactFilter, GroupFilter } from 'wa-shared';
 
 export default function ContactsPage() {
   const [contactFilter, setContactFilter] = useState<ContactFilter>({

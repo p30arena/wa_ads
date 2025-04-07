@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { audienceGroupsApi } from '@/services/audienceGroups';
-import { AudienceGroup } from '@/shared/types/audienceGroups';
+import { AudienceGroup } from 'wa-shared';
 
 export default function AudienceGroupsPage() {
   const [audienceGroups, setAudienceGroups] = useState<AudienceGroup[]>([]);

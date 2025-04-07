@@ -1,4 +1,4 @@
-import { WSEventType, WSMessage } from '@/shared/types/websocket';
+import { WSEventType, WSMessage } from 'wa-shared';
 export type { WSEventType };
 import { EventEmitter } from 'events';
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createApi, endpoint } from 'express-zod-api';
+import { defaultEndpointsFactory } from 'express-zod-api';
 import { WhatsAppService } from '../services/WhatsAppService';
 
 const groupFilterSchema = z.object({
@@ -10,9 +10,8 @@ const groupFilterSchema = z.object({
 });
 
 export const groupEndpoints = {
-  listGroups: endpoint({
+  listGroups: defaultEndpointsFactory.build({
     method: 'get',
-    path: '/groups',
     input: groupFilterSchema,
     output: z.object({
       groups: z.array(z.object({
@@ -33,10 +32,10 @@ export const groupEndpoints = {
       page: z.number(),
       pageSize: z.number(),
     }),
-    handler: async ({ input, options }) => {
+    handler: async ({ input, options }: { input: any, options: any }) => {
       const whatsapp = options.whatsapp as WhatsAppService;
       
-      if (!whatsapp.isReady()) {
+      if (!whatsapp.isConnected()) {
         throw new Error('WhatsApp client is not ready');
       }
 

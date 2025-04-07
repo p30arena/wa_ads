@@ -1,4 +1,4 @@
-import { AudienceGroup } from '../../../shared/types/audienceGroups';
+import { AudienceGroup } from 'wa-shared';
 
 const API_BASE = '/api/audience-groups';
 

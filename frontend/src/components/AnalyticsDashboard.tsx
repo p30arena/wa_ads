@@ -124,7 +124,9 @@ export function AnalyticsDashboard() {
     return { dailyStats, templateStats };
   };
 
-  const { dailyStats, templateStats } = processJobsData(jobs);
+  // Extract the items array from the API response
+  const jobItems = jobs ? (jobs as any).items : undefined;
+  const { dailyStats, templateStats } = processJobsData(jobItems);
 
   return (
     <div className="space-y-8">

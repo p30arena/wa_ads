@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Group, GroupFilter } from '@shared/types/contacts';
+import { Group, GroupFilter } from 'wa-shared';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UsersIcon } from 'lucide-react';
 import { CustomPagination } from '../ui/custom-pagination';

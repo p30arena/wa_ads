@@ -42,7 +42,7 @@ export function ModerationPanel() {
     },
   });
 
-  const moderateMutation = useMutation<ModerationLog, Error, ModerationAction>({
+  const moderateMutation = useMutation({
     mutationFn: async (action: ModerationAction) => {
       const response = await moderationApi.moderateJob(action.jobId, action.action, action.notes);
       return response.data;
@@ -54,9 +54,9 @@ export function ModerationPanel() {
     },
   });
 
-  const jobControlMutation = useMutation<AdJob, Error, { jobId: number; action: 'start' | 'stop' }>({
-    mutationFn: async ({ jobId, action }) => {
-      const response = await adJobApi.updateJobStatus(jobId, action === 'start' ? 'running' : 'stopped');
+  const jobControlMutation = useMutation({
+    mutationFn: async (params: { jobId: number; action: 'start' | 'stop' }) => {
+      const response = await adJobApi.updateJobStatus(params.jobId, params.action === 'start' ? 'running' : 'stopped');
       return response.data;
     },
     onSuccess: () => {
@@ -117,7 +117,7 @@ export function ModerationPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {pendingJobs?.map((job) => (
+                  {pendingJobs && (pendingJobs as any).items ? (pendingJobs as any).items.map((job: any) => (
                     <tr
                       key={job.id}
                       className={
@@ -167,7 +167,7 @@ export function ModerationPanel() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )) : null}
                 </tbody>
               </table>
             </div>

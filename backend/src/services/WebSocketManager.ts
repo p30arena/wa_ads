@@ -1,7 +1,7 @@
 import * as WebSocket from 'ws';
 import { Server } from 'http';
 import { EventEmitter } from 'events';
-import { WSEventType, WSMessage } from '../shared/types/websocket';
+import { WSEventType, WSMessage } from 'wa-shared';
 
 const debug = (message: string, ...args: any[]) => {
   console.log(`[WebSocket Server] ${message}`, ...args);

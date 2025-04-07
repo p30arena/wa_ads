@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { WhatsAppStatus } from '@/types';
-import { WSMessage } from '@/shared/types/websocket';
+import { WSMessage } from 'wa-shared';
 
 interface WebSocketStore {
   socket: WebSocket | null;

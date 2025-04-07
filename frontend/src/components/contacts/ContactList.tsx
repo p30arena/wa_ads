@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Contact, ContactFilter } from '@shared/types/contacts';
+import { Contact, ContactFilter } from 'wa-shared';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CustomPagination } from '@/components/ui/custom-pagination';
 

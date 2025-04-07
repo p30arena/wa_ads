@@ -33,18 +33,21 @@ export default function TemplatesPage() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isUpdateOpen, setIsUpdateOpen] = useState(false);
-  const [newTemplate, setNewTemplate] = useState({ title: '', messages: [''] });
+  const [newTemplate, setNewTemplate] = useState<Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>>({ 
+    title: '', 
+    messages: [{ type: 'text' as const, content: '' }] 
+  });
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
 
-  const { data: templates, isLoading } = useQuery<{items: MessageTemplate[]}, Error>({
+  const { data: templates, isLoading } = useQuery({
     queryKey: ['templates'],
     queryFn: async () => {
       const response = await templateApi.getTemplates();
-      return (response.data as any).data;
+      return response.data;
     },
   });
 
-  const updateMutation = useMutation<MessageTemplate, Error, { id: number, template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'> }>({    mutationFn: async ({ id, template }) => {
+  const updateMutation = useMutation({    mutationFn: async ({ id, template }: { id: number, template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'> }) => {
       const response = await templateApi.updateTemplate(id, template);
       return response.data;
     },
@@ -59,15 +62,15 @@ export default function TemplatesPage() {
     },
   });
 
-  const createMutation = useMutation<MessageTemplate, Error, Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>>({
-    mutationFn: async (data) => {
+  const createMutation = useMutation({
+    mutationFn: async (data: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
       const response = await templateApi.createTemplate(data);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
       setIsCreateOpen(false);
-      setNewTemplate({ title: '', messages: [''] });
+      setNewTemplate({ title: '', messages: [{ type: 'text', content: '' }] });
       toast.success('Template created successfully');
     },
     onError: () => {
@@ -135,10 +138,10 @@ export default function TemplatesPage() {
                 {newTemplate.messages.map((message, index) => (
                   <div key={index} className="flex gap-2">
                     <Textarea
-                      value={message}
+                      value={message.content}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                         const newMessages = [...newTemplate.messages];
-                        newMessages[index] = e.target.value;
+                        newMessages[index] = { ...message, content: e.target.value };
                         setNewTemplate({ ...newTemplate, messages: newMessages });
                       }}
                       placeholder={`Enter message ${index + 1}`}
@@ -150,7 +153,10 @@ export default function TemplatesPage() {
                       type="button"
                       onClick={() => {
                         const newMessages = newTemplate.messages.filter((_, i) => i !== index);
-                        setNewTemplate({ ...newTemplate, messages: newMessages.length ? newMessages : [''] });
+                        setNewTemplate({ 
+                          ...newTemplate, 
+                          messages: newMessages.length ? newMessages : [{ type: 'text' as const, content: '' }] 
+                        });
                       }}
                       disabled={newTemplate.messages.length === 1}
                     >
@@ -163,7 +169,7 @@ export default function TemplatesPage() {
                   variant="outline"
                   onClick={() => setNewTemplate({
                     ...newTemplate,
-                    messages: [...newTemplate.messages, '']
+                    messages: [...newTemplate.messages, { type: 'text' as const, content: '' }]
                   })}
                 >
                   Add Message
@@ -201,10 +207,10 @@ export default function TemplatesPage() {
                 {selectedTemplate?.messages.map((message, index) => (
                   <div key={index} className="flex gap-2">
                     <Textarea
-                      value={message}
+                      value={message.content}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                         const newMessages = [...(selectedTemplate?.messages ?? [])];
-                        newMessages[index] = e.target.value;
+                        newMessages[index] = { ...message, content: e.target.value };
                         setSelectedTemplate(prev => prev ? { ...prev, messages: newMessages } : null);
                       }}
                       placeholder={`Enter message ${index + 1}`}
@@ -216,7 +222,7 @@ export default function TemplatesPage() {
                       type="button"
                       onClick={() => {
                         const newMessages = selectedTemplate.messages.filter((_, i) => i !== index);
-                        setSelectedTemplate(prev => prev ? { ...prev, messages: newMessages.length ? newMessages : [''] } : null);
+                        setSelectedTemplate(prev => prev ? { ...prev, messages: newMessages.length ? newMessages : [{ type: 'text' as const, content: '' }] } : null);
                       }}
                       disabled={selectedTemplate.messages.length === 1}
                     >
@@ -229,7 +235,7 @@ export default function TemplatesPage() {
                   variant="outline"
                   onClick={() => setSelectedTemplate(prev => prev ? {
                     ...prev,
-                    messages: [...prev.messages, '']
+                    messages: [...prev.messages, { type: 'text' as const, content: '' }]
                   } : null)}
                 >
                   Add Message
@@ -269,14 +275,14 @@ export default function TemplatesPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {templates?.items?.map((template: MessageTemplate) => (
+          {templates && (templates as any).items?.map((template: MessageTemplate) => (
             <TableRow key={template.id}>
               <TableCell>{template.title}</TableCell>
               <TableCell className="max-w-md">
                 <div className="space-y-1">
                   {template.messages.map((message, index) => (
                     <div key={index} className="truncate text-sm">
-                      {index + 1}. {message}
+                      {index + 1}. {message.content}
                     </div>
                   ))}
                 </div>

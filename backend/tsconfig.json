@@ -13,9 +13,7 @@
       "emitDecoratorMetadata": true,
       "strictPropertyInitialization": false,
       "baseUrl": ".",
-      "paths": {
-        "@shared/*": ["./src/shared/*", "../shared/*"]
-      },
+      "paths": {},
     },
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]

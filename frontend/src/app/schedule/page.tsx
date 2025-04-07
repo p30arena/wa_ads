@@ -12,8 +12,16 @@ export default function SchedulePage() {
   const { data: jobs } = useQuery({
     queryKey: ['scheduled-jobs'],
     queryFn: async () => {
+      // First get the response
       const response = await adJobApi.getJobs();
-      return response.data.filter(job => job.status !== 'completed' && job.status !== 'failed');
+      
+      // Use a double type assertion to safely convert the response data
+      const jobItems = (response.data as unknown as { items: AdJob[] }).items;
+      
+      // Filter the jobs
+      return jobItems.filter((job: AdJob) => 
+        job.status !== 'completed' && job.status !== 'failed'
+      );
     },
   });
 
@@ -39,7 +47,7 @@ export default function SchedulePage() {
             </h3>
             <div className="mt-6 flow-root">
               <ul role="list" className="-my-5 divide-y divide-gray-200">
-                {jobs?.map((job) => (
+                {jobs?.map((job: AdJob) => (
                   <li
                     key={job.id}
                     className="py-4 cursor-pointer hover:bg-gray-50"

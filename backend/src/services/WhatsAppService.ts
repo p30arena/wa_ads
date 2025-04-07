@@ -1,5 +1,5 @@
 import { Client, LocalAuth, Chat, Contact } from 'whatsapp-web.js';
-import { WSEventType } from '../shared/types/websocket';
+import { WSEventType } from 'wa-shared';
 import { WebSocketManager } from './WebSocketManager';
 import { RateLimiterService } from './RateLimiterService';
 import { EventEmitter } from 'events';
