@@ -13,8 +13,8 @@ The project leverages the following technologies:
   - Language: TypeScript only (no JavaScript allowed).
   - Purpose: Provides the user interface for ad creation, audience selection, and moderation.
 - **Database**: 
-  - Type: SQLite.
-  - Purpose: Persistent storage for contacts, groups, phone book entries, ad campaigns, templates, and moderation logs.
+  - Type: SQLite with Prisma ORM.
+  - Purpose: Persistent storage for contacts, groups, phone book entries, ad campaigns, templates, audience groups, and moderation logs.
 - **WebSocket**: 
   - Type: Persistent connection between frontend and backend.
   - Purpose: Ensures real-time updates (e.g., connection status, QR code display, ad job progress).
@@ -22,4 +22,8 @@ The project leverages the following technologies:
   - Library: whatsapp-web.js.
   - Purpose: Facilitates sending ads to WhatsApp contacts, groups, and non-contacts.
 
-This stack ensures type safety, real-time functionality, and seamless WhatsApp automation.
+- **Shared Code Structure**:
+  - Type: Local module (wa-shared).
+  - Purpose: Provides unified types and utilities shared between frontend and backend.
+
+This stack ensures type safety, real-time functionality, and seamless WhatsApp automation with consistent type definitions across the entire application.

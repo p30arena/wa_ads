@@ -1,7 +1,7 @@
 **Title: WhatsApp Ads Software - Database Schema**
 
 #### Purpose
-This document defines the SQLite database schema used for persistent storage.
+This document defines the SQLite database schema used for persistent storage, managed through Prisma ORM.
 
 #### Content
 1. **Users**
@@ -28,4 +28,8 @@ This document defines the SQLite database schema used for persistent storage.
    - Columns: `id (INTEGER, PK)`, `job_id (INTEGER)`, `moderator (TEXT)`, `action (TEXT)`.
    - Purpose: Logs moderation actions for auditing.
 
-This schema supports all core features with relational integrity.
+7. **Audience Groups**
+   - Columns: `id (INTEGER, PK)`, `name (TEXT)`, `contacts (TEXT, JSON)`, `groups (TEXT, JSON)`, `createdAt (DATETIME)`, `updatedAt (DATETIME)`.
+   - Purpose: Manages reusable audience groups for targeting ad campaigns.
+
+This schema is managed through Prisma ORM, which provides type-safe database access and handles migrations automatically.

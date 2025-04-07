@@ -6,9 +6,10 @@ A powerful WhatsApp advertising platform that enables sending ads to contacts, g
 
 - **Backend**: Express.js with express-zod-api
 - **Frontend**: Next.js (CSR mode, TypeScript)
-- **Database**: SQLite
+- **Database**: SQLite with Prisma ORM
 - **WebSocket**: Real-time updates
 - **WhatsApp Integration**: whatsapp-web.js
+- **Shared Code**: Unified types and utilities shared between frontend and backend
 
 ## Features
 
@@ -24,17 +25,31 @@ A powerful WhatsApp advertising platform that enables sending ads to contacts, g
 ```
 whatsapp-ads/
 ├── backend/
+│   ├── prisma/
+│   │   └── schema.prisma
 │   ├── src/
 │   │   ├── config/
-│   │   ├── entities/
+│   │   ├── controllers/
 │   │   ├── routes/
 │   │   ├── services/
 │   │   ├── websocket/
 │   │   └── index.ts
 │   ├── package.json
 │   └── tsconfig.json
-└── frontend/
-    └── (Next.js structure - coming soon)
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── services/
+│   │   └── types/
+│   ├── package.json
+│   └── tsconfig.json
+└── wa-shared/
+    ├── src/
+    │   ├── types/
+    │   └── utils/
+    ├── package.json
+    └── tsconfig.json
 ```
 
 ## Getting Started
@@ -79,7 +94,7 @@ Coming soon...
 
 ## Database Schema
 
-The application uses SQLite with the following core tables:
+The application uses SQLite with Prisma ORM and includes the following core tables:
 
 - Users
 - Contacts & Groups
@@ -87,6 +102,7 @@ The application uses SQLite with the following core tables:
 - Message Templates
 - Ad Jobs
 - Moderation Logs
+- Audience Groups
 
 ## WebSocket Events
 

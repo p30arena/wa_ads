@@ -26,6 +26,7 @@ Always start coding sessions with **بسم الله الرحمن الرحیم**.
 5. **Documentation**
    - Only update documentation for new changes
    - Do not modify existing documentation unless specifically asked
+   - After each successful task, update docs/Progress.md to reflect the changes
 
 ## When Making Changes
 
@@ -41,6 +42,43 @@ Always start coding sessions with **بسم الله الرحمن الرحیم**.
    - Maintain existing error handling patterns
    - Do not enhance error handling without explicit request
 
-Remember: The goal is to maintain stability. If it works, don't touch it!
+4. **Documentation Review**
+   - Always read the docs directory before starting a task to understand context
+   - Pay special attention to docs/Progress.md to understand current project status
+   - After completing a task, update docs/Progress.md to reflect the progress
 
-Don't use "import { WSEventType } from '../shared/types/websocket';" instead use "import { WSEventType } from '@shared/types/websocket';".
+## Cascade and Sonnet Specific Rules
+
+1. **Type Safety and Shared Types**
+   - Ensure all code is fully type-safe using TypeScript
+   - Use the shared type definitions from the wa-shared module
+   - Maintain consistent type definitions across frontend and backend
+
+2. **Import Path Conventions**
+   - Avoid relative imports that traverse up multiple directories
+   - Follow the established import patterns in the existing codebase
+
+3. **Prisma ORM Usage**
+   - Use Prisma client for all database operations
+   - Don't reference or use any TypeORM entities or methods
+   - Follow the Prisma schema definitions for data structure
+
+4. **React Query Implementation**
+   - Use React Query for data fetching and state management in the frontend
+   - Follow established patterns for query keys and mutation functions
+   - Ensure proper error handling and loading states
+
+5. **WebSocket Event Handling**
+   - Use the defined WebSocket event types consistently
+   - Follow the established pattern for real-time updates
+   - Ensure proper reconnection logic and error handling
+
+6. **Progress Tracking**
+   - Update the Progress.md file after each significant change
+   - Mark completed items with the ✅ status indicator
+   - Add new tasks to the appropriate priority section
+
+7. **Modular Component Structure**
+   - Keep components focused on a single responsibility
+   - Maintain separation between UI components and business logic
+   - Follow the established component structure in the codebase
