@@ -59,3 +59,23 @@ export interface WhatsAppStatus {
   initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
   initializationError: string | null;
 }
+
+export interface AudienceGroup {
+  id: number;
+  name: string;
+  contacts: string[];
+  groups: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduleSettings {
+  startDate: string;
+  startTime: string;
+  endDate?: string;
+  endTime?: string;
+  repeatDaily?: boolean;
+  repeatWeekly?: boolean;
+  daysOfWeek?: string[];
+  timeSlots?: { start: string; end: string }[];
+}

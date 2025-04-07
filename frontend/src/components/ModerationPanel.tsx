@@ -56,7 +56,12 @@ export function ModerationPanel() {
 
   const jobControlMutation = useMutation({
     mutationFn: async (params: { jobId: number; action: 'start' | 'stop' }) => {
-      const response = await adJobApi.updateJobStatus(params.jobId, params.action === 'start' ? 'running' : 'stopped');
+      let response;
+      if (params.action === 'start') {
+        response = await adJobApi.startJob(params.jobId);
+      } else {
+        response = await adJobApi.stopJob(params.jobId);
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -136,7 +141,7 @@ export function ModerationPanel() {
                         {job.status}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {job.messagesDelivered}/{job.messagesSent}
+                        {job.messagesSent ? `${job.messagesDelivered || 0}/${job.messagesSent}` : 'Not started'}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         {format(new Date(job.createdAt), 'MMM d, yyyy')}
@@ -176,10 +181,36 @@ export function ModerationPanel() {
 
         {/* Moderation Dialog */}
         {selectedJob && (
-          <div className="mt-6 bg-gray-50 p-4 rounded-lg">
+          <div className="mt-6 bg-gray-50 p-4 rounded-lg shadow-sm">
             <h4 className="text-lg font-medium text-gray-900 mb-4">
               Moderate Job #{selectedJob.id}
             </h4>
+            <div className="mb-4 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Status:</span>{' '}
+                <span className="capitalize">{selectedJob.status}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Created:</span>{' '}
+                {format(new Date(selectedJob.createdAt), 'MMM d, yyyy HH:mm')}
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Template ID:</span>{' '}
+                {selectedJob.templateId}
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Audience:</span>{' '}
+                {selectedJob.audience}
+              </div>
+              {selectedJob.messagesSent && (
+                <div className="col-span-2">
+                  <span className="font-medium text-gray-700">Progress:</span>{' '}
+                  <span className="text-indigo-600">
+                    {selectedJob.messagesDelivered || 0} of {selectedJob.messagesSent} messages delivered
+                  </span>
+                </div>
+              )}
+            </div>
             <div className="space-y-4">
               <div>
                 <label

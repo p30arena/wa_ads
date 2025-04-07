@@ -2,6 +2,8 @@ import { createConfig, createServer as createZodServer } from 'express-zod-api';
 import prisma from './config/prisma';
 import { WebSocketManager } from './services/WebSocketManager';
 import { WhatsAppService } from './services/WhatsAppService';
+import { AdJobService } from './services/AdJobService';
+import { JobSchedulerService } from './services/JobSchedulerService';
 import { createRoutes } from './routes';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -63,7 +65,7 @@ const startServer = async () => {
     await prisma.$connect();
     console.log('Database connection established');
 
-    const wa: { whatsappService: WhatsAppService | null, wsManager: WebSocketManager | null } = { whatsappService: null, wsManager: null };
+    const wa: { whatsappService: WhatsAppService | null, wsManager: WebSocketManager | null, adJobService: AdJobService | null } = { whatsappService: null, wsManager: null, adJobService: null };
     // Create API routes
     const routing = createRoutes(wa);
     const { app, servers } = await createZodServer(config, routing);
@@ -75,12 +77,23 @@ const startServer = async () => {
     // Initialize WhatsApp Service
     const whatsappService = new WhatsAppService(wsManager, { currentVersion });
 
+    // Initialize AdJobService
+    const adJobService = new AdJobService(whatsappService, wsManager);
+
+    // Initialize JobSchedulerService
+    const jobSchedulerService = new JobSchedulerService(adJobService);
+
     wa.whatsappService = whatsappService;
     wa.wsManager = wsManager;
+    wa.adJobService = adJobService;
 
     // Initialize WhatsApp client
-    whatsappService.initialize().then(() => 
+    await whatsappService.initialize().then(() => 
       console.log('WhatsApp client initialized'));
+      
+    // Initialize job scheduler
+    await jobSchedulerService.initialize().then(() =>
+      console.log('Job scheduler initialized'));
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

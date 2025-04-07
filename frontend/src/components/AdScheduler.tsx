@@ -57,6 +57,17 @@ export function AdScheduler({ jobId, onScheduleSubmit }: AdSchedulerProps) {
       queryClient.invalidateQueries({ queryKey: ['job', jobId] });
     },
   });
+  
+  // Schedule job for a specific time mutation
+  const scheduleJobMutation = useMutation({
+    mutationFn: async (scheduleTime: string) => {
+      const response = await adJobApi.scheduleJob(jobId, scheduleTime);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+    },
+  });
 
   const handleDayToggle = (day: string) => {
     setSchedule((prev) => ({
@@ -98,7 +109,13 @@ export function AdScheduler({ jobId, onScheduleSubmit }: AdSchedulerProps) {
   };
 
   const handleSaveSchedule = () => {
+    // First update the detailed schedule settings
     updateScheduleMutation.mutate(schedule);
+    
+    // Then schedule the job for execution at the start date/time
+    const scheduleDateTime = `${schedule.startDate}T${schedule.startTime}:00`;
+    scheduleJobMutation.mutate(scheduleDateTime);
+    
     onScheduleSubmit(schedule);
   };
 

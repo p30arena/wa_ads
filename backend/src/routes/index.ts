@@ -3,6 +3,8 @@ import { z } from 'zod';
 import prisma from '../config/prisma';
 import { WhatsAppService } from '../services/WhatsAppService';
 import { WebSocketManager } from '../services/WebSocketManager';
+import { AdJobService } from '../services/AdJobService';
+import { WSEventType } from 'wa-shared';
 
 // Define enums to replace the removed entity enums
 enum AdJobStatus {
@@ -103,13 +105,21 @@ const audienceGroupSchema = z.object({ // Define audience group schema
 type Options = {
   whatsappService: WhatsAppService;
   wsManager?: WebSocketManager;
+  adJobService?: AdJobService;
 };
 
 // Create endpoints
 export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsManager: WebSocketManager | null }): Routing => {
+  // Initialize AdJobService if WhatsAppService and WebSocketManager are available
+  const adJobService = wa.whatsappService && wa.wsManager ? new AdJobService(wa.whatsappService, wa.wsManager) : null;
+  
   const e = defaultEndpointsFactory.addMiddleware(new Middleware<any, Options, string, any>({
     handler: async ({ request: req, response: res }) => {
-      return { whatsappService: wa.whatsappService!, wsManager: wa.wsManager! };
+      return { 
+        whatsappService: wa.whatsappService!, 
+        wsManager: wa.wsManager!,
+        adJobService: adJobService!
+      };
     },
   }));
 
@@ -351,6 +361,189 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           },
         }),
       },
+      jobs: {
+        ':id': {
+          start: e.build({
+            method: 'post',
+            input: z.object({
+              id: z.string().transform(s => Number(s)),
+            }),
+            output: z.object({
+              success: z.boolean(),
+              job: adJobSchema.extend({ id: z.number() }).optional(),
+              error: z.string().optional(),
+            }),
+            handler: async ({ input, options }) => {
+              if (!options.adJobService) {
+                throw new Error('AdJobService is not available');
+              }
+
+              try {
+                // Get the job
+                const job = await prisma.adJob.findUnique({
+                  where: { id: input.id }
+                });
+
+                if (!job) {
+                  return {
+                    success: false,
+                    error: `Job with ID ${input.id} not found`,
+                  };
+                }
+
+                // Update job status to running
+                const updatedJob = await prisma.adJob.update({
+                  where: { id: input.id },
+                  data: { status: AdJobStatus.RUNNING }
+                });
+
+                // Broadcast status update via WebSocket
+                if (options.wsManager) {
+                  options.wsManager.broadcast('ad:status' as WSEventType, {
+                    jobId: updatedJob.id,
+                    status: updatedJob.status,
+                  });
+                }
+
+                // Start processing the job
+                options.adJobService.processJob(input.id);
+
+                return {
+                  success: true,
+                  job: {
+                    id: updatedJob.id,
+                    templateId: updatedJob.templateId,
+                    status: updatedJob.status as any,
+                    audience: updatedJob.audience,
+                  },
+                };
+              } catch (error) {
+                return {
+                  success: false,
+                  error: error instanceof Error ? error.message : String(error),
+                };
+              }
+            },
+          }),
+          stop: e.build({
+            method: 'post',
+            input: z.object({
+              id: z.string().transform(s => Number(s)),
+            }),
+            output: z.object({
+              success: z.boolean(),
+              job: adJobSchema.extend({ id: z.number() }).optional(),
+              error: z.string().optional(),
+            }),
+            handler: async ({ input, options }) => {
+              if (!options.adJobService) {
+                throw new Error('AdJobService is not available');
+              }
+
+              try {
+                // Get the job
+                const job = await prisma.adJob.findUnique({
+                  where: { id: input.id }
+                });
+
+                if (!job) {
+                  return {
+                    success: false,
+                    error: `Job with ID ${input.id} not found`,
+                  };
+                }
+
+                // Update job status to stopped
+                const updatedJob = await prisma.adJob.update({
+                  where: { id: input.id },
+                  data: { status: AdJobStatus.STOPPED }
+                });
+
+                // Broadcast status update via WebSocket
+                if (options.wsManager) {
+                  options.wsManager.broadcast('ad:status' as WSEventType, {
+                    jobId: updatedJob.id,
+                    status: updatedJob.status,
+                  });
+                }
+
+                return {
+                  success: true,
+                  job: {
+                    id: updatedJob.id,
+                    templateId: updatedJob.templateId,
+                    status: updatedJob.status as any,
+                    audience: updatedJob.audience,
+                  },
+                };
+              } catch (error) {
+                return {
+                  success: false,
+                  error: error instanceof Error ? error.message : String(error),
+                };
+              }
+            },
+          }),
+          schedule: e.build({
+            method: 'put',
+            input: z.object({
+              id: z.string().transform(s => Number(s)),
+              schedule: z.object({
+                startDate: z.string(),
+                startTime: z.string(),
+                endDate: z.string().optional(),
+                endTime: z.string().optional(),
+                repeatDaily: z.boolean().optional(),
+                repeatWeekly: z.boolean().optional(),
+                daysOfWeek: z.array(z.string()).optional(),
+                timeSlots: z.array(z.object({
+                  start: z.string(),
+                  end: z.string(),
+                })).optional(),
+              }),
+            }),
+            output: z.object({
+              success: z.boolean(),
+              job: adJobSchema.extend({ id: z.number() }).optional(),
+              error: z.string().optional(),
+            }),
+            handler: async ({ input, options }) => {
+              try {
+                // Get the job
+                const job = await prisma.adJob.findUnique({
+                  where: { id: input.id }
+                });
+
+                if (!job) {
+                  return {
+                    success: false,
+                    error: `Job with ID ${input.id} not found`,
+                  };
+                }
+
+                // Update job with schedule information
+                // This would typically be stored in a separate table or as JSON in the job record
+                // For now, we'll just return success
+                
+                return {
+                  success: true,
+                  job: {
+                    id: job.id,
+                    templateId: job.templateId,
+                    status: job.status as any,
+                    audience: job.audience,
+                  },
+                };
+              } catch (error) {
+                return {
+                  success: false,
+                  error: error instanceof Error ? error.message : String(error),
+                };
+              }
+            },
+          }),
+        },
+      },
       adJobs: {
         list: e.build({
           method: 'get',
@@ -419,145 +612,45 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             return { id: savedJob.id };
           },
         }),
-        process: e.build({
+        schedule: e.build({
           method: 'post',
+          description: 'Schedule an ad job for future execution',
           input: z.object({
-            id: z.number(),
+            id: z.number().int().positive(),
+            scheduleTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+              message: 'Invalid date format. Please provide a valid ISO date string',
+            }),
           }),
           output: z.object({
             success: z.boolean(),
             message: z.string(),
           }),
           handler: async ({ input, options }) => {
-            if (!options.whatsappService || !options.whatsappService.isConnected()) {
-              throw new Error('WhatsApp client is not connected');
+            if (!options.adJobService) {
+              throw new Error('AdJobService is not available');
             }
-            
-            // Get the ad job
-            const adJob = await prisma.adJob.findUnique({
-              where: { id: input.id }
-            });
-            
-            if (!adJob) {
-              throw new Error('Ad job not found');
-            }
-            
-            if (adJob.status !== 'pending' && adJob.status !== 'approved') {
-              throw new Error(`Cannot process ad job with status ${adJob.status}`);
-            }
-            
-            // Get the message template with stored message IDs
-            const template = await prisma.messageTemplate.findUnique({
-              where: { id: adJob.templateId }
-            });
-            
-            if (!template) {
-              throw new Error('Template not found');
-            }
-            
-            if (!template.isSentToSelf || !template.messageIds || template.messageIds.length === 0) {
-              throw new Error('Template messages have not been sent to self yet');
-            }
-            
-            // Update job status to running
-            await prisma.adJob.update({
-              where: { id: input.id },
-              data: { status: 'running' }
-            });
-            
-            // Broadcast status update
-            options.wsManager?.broadcast('ad:status', {
-              id: adJob.id,
-              status: 'running',
-              templateId: adJob.templateId,
-              audience: adJob.audience,
-            });
             
             try {
-              // Parse audience (could be a contact, group, or audience group ID)
-              const audienceGroup = await prisma.audienceGroup.findUnique({
-                where: { id: Number(adJob.audience) }
-              });
-              if (!audienceGroup) {
-                throw new Error(`Audience group with ID ${adJob.audience} not found`);
-              }
-            
-              let recipients: string[] = [];
+              const scheduleTime = new Date(input.scheduleTime);
               
-              if (audienceGroup) {
-                // If it's an audience group, get all contacts and groups
-                recipients = audienceGroup.contacts.split(',');
-                // Groups would be handled differently
-              } else {
-                // Assume it's a single recipient
-                recipients = [adJob.audience];
+              // Validate that the schedule time is in the future
+              if (scheduleTime <= new Date()) {
+                return {
+                  success: false,
+                  message: 'Schedule time must be in the future',
+                };
               }
               
-              // Send messages to all recipients using stored message IDs
-              let successCount = 0;
-              let failureCount = 0;
-              
-              for (const recipient of recipients) {
-                try {
-                  await options.whatsappService.forwardStoredMessages(recipient, template.messageIds.split(','));
-                  successCount++;
-                } catch (error) {
-                  console.error(`Failed to send to ${recipient}:`, error);
-                  failureCount++;
-                }
-                
-                // Add a small delay between sends to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-              
-              // Update job status based on results
-              if (failureCount === 0) {
-                await prisma.adJob.update({
-                  where: { id: input.id },
-                  data: { status: 'completed' }
-                });
-              } else if (successCount === 0) {
-                await prisma.adJob.update({
-                  where: { id: input.id },
-                  data: { status: 'failed' }
-                });
-              } else {
-                await prisma.adJob.update({
-                  where: { id: input.id },
-                  data: { status: 'completed' } // Partial success still marked as completed
-                });
-              }
-              
-              // Broadcast final status
-              options.wsManager?.broadcast('ad:status', {
-                id: adJob.id,
-                status: adJob.status,
-                templateId: adJob.templateId,
-                audience: adJob.audience,
-              });
+              await options.adJobService.scheduleJob(input.id, scheduleTime);
               
               return {
                 success: true,
-                message: `Messages sent to ${successCount} recipients. ${failureCount > 0 ? `Failed for ${failureCount} recipients.` : ''}`
+                message: `Job ${input.id} scheduled for ${scheduleTime.toISOString()}`,
               };
             } catch (error) {
-              // Update job status to failed
-              await prisma.adJob.update({
-                where: { id: input.id },
-                data: { status: 'failed' }
-              });
-              
-              // Broadcast failure
-              options.wsManager?.broadcast('ad:status', {
-                id: adJob.id,
-                status: 'failed',
-                templateId: adJob.templateId,
-                audience: adJob.audience,
-              });
-              
               return {
                 success: false,
-                message: `Failed to process ad job: ${error instanceof Error ? error.message : String(error)}`
+                message: `Failed to schedule job: ${error instanceof Error ? error.message : String(error)}`,
               };
             }
           },

@@ -5,7 +5,9 @@ import type {
   PhoneBookEntry, 
   MessageTemplate, 
   AdJob, 
-  ModerationLog 
+  ModerationLog,
+  AudienceGroup,
+  ScheduleSettings
 } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -82,7 +84,8 @@ export const adJobApi = {
   }>>(`/api/jobs/${jobId}/logs`),
   startJob: (id: number) => api.post<ApiResponse<AdJob>>(`/api/jobs/${id}/start`),
   stopJob: (id: number) => api.post<ApiResponse<AdJob>>(`/api/jobs/${id}/stop`),
-  updateJobSchedule: (id: number, schedule: any) => api.put<ApiResponse<AdJob>>(`/api/jobs/${id}/schedule`, { schedule }),
+  updateJobSchedule: (id: number, schedule: ScheduleSettings) => api.put<ApiResponse<AdJob>>(`/api/jobs/${id}/schedule`, { schedule }),
+  scheduleJob: (id: number, scheduleTime: string) => api.post<ApiResponse<{success: boolean; message: string}>>(`/api/ads/schedule`, { id, scheduleTime }),
 };
 
 export const moderationApi = {
@@ -91,4 +94,16 @@ export const moderationApi = {
   }>>('/api/moderation/queue'),
   moderateJob: (jobId: number, action: ModerationLog['action'], notes?: string) => 
     api.post<ApiResponse<ModerationLog>>(`/api/moderation/${jobId}`, { action, notes }),
+};
+
+export const audienceGroupApi = {
+  getGroups: () => api.get<ApiResponse<{
+    items: AudienceGroup[];
+  }>>('/api/audienceGroups/list'),
+  createGroup: (group: { name: string; contacts: string[]; groups: string[] }) => 
+    api.post<ApiResponse<AudienceGroup>>('/api/audienceGroups/create', group),
+  updateGroup: (id: number, updates: { name?: string; contacts?: string[]; groups?: string[] }) => 
+    api.put<ApiResponse<{ success: boolean }>>('/api/audienceGroups/update', { id, ...updates }),
+  deleteGroup: (id: number) => 
+    api.delete<ApiResponse<{ success: boolean }>>(`/api/audienceGroups/delete?id=${id}`),
 };
