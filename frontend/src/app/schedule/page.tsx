@@ -40,30 +40,30 @@ export default function SchedulePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Scheduled Jobs List */}
-        <div className="bg-white shadow sm:rounded-lg">
+        <div className="bg-card text-card-foreground shadow sm:rounded-lg border border-border">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-base font-semibold leading-6 text-gray-900">
+            <h3 className="text-base font-semibold leading-6 text-foreground">
               Active Campaigns
             </h3>
             <div className="mt-6 flow-root">
-              <ul role="list" className="-my-5 divide-y divide-gray-200">
+              <ul role="list" className="-my-5 divide-y divide-border">
                 {jobs?.map((job: AdJob) => (
                   <li
                     key={job.id}
-                    className="py-4 cursor-pointer hover:bg-gray-50"
+                    className="py-4 cursor-pointer hover:bg-muted dark:hover:bg-gray-800"
                     onClick={() => setSelectedJob(job)}
                   >
                     <div className="flex items-center space-x-4">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">
+                        <p className="truncate text-sm font-medium text-foreground">
                           Template #{job.templateId}
                         </p>
-                        <p className="truncate text-sm text-gray-500">
+                        <p className="truncate text-sm text-muted-foreground">
                           Status: {job.status}
                         </p>
                       </div>
                       <div>
-                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                        <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 ring-1 ring-inset ring-green-600/20">
                           {job.messagesDelivered}/{job.messagesSent}
                         </span>
                       </div>
@@ -76,7 +76,7 @@ export default function SchedulePage() {
         </div>
 
         {/* Scheduler */}
-        <div className="bg-white shadow sm:rounded-lg">
+        <div className="bg-card text-card-foreground shadow sm:rounded-lg border border-border">
           <div className="px-4 py-5 sm:p-6">
             {selectedJob ? (
               <AdScheduler
@@ -89,7 +89,7 @@ export default function SchedulePage() {
               />
             ) : (
               <div className="text-center py-12">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   Select a campaign from the list to schedule
                 </p>
               </div>

@@ -69,26 +69,40 @@ export function MessageTemplateEditor({
         {messages.map((message, index) => (
           <div
             key={index}
-            className="flex flex-col max-w-[80%] ml-auto bg-indigo-50 rounded-lg p-3"
+            className="flex items-end gap-2 max-w-[80%] ml-auto"
           >
-            {message.type === 'media' && (
-              <div className="mb-2">
-                <img
-                  src={message.content}
-                  alt="Media preview"
-                  className="max-w-full rounded"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                  }}
-                />
-                {message.caption && (
-                  <p className="mt-2 text-sm text-gray-600">{message.caption}</p>
-                )}
-              </div>
-            )}
-            {message.type === 'text' && (
-              <p className="text-gray-800">{message.content}</p>
-            )}
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+              <img
+                src={'/avatar-default.png'}
+                alt="Avatar"
+                className="w-8 h-8 rounded-full border border-gray-300"
+              />
+            </div>
+            <div className="flex flex-col bg-indigo-50 rounded-lg p-3 min-w-0">
+              {message.type === 'media' && (
+                <div className="mb-2">
+                  <img
+                    src={message.content}
+                    alt="Media preview"
+                    className="max-w-full rounded"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                    }}
+                  />
+                  {message.caption && (
+                    <p className="mt-2 text-sm text-gray-600">{message.caption}</p>
+                  )}
+                </div>
+              )}
+              {message.type === 'text' && (
+                <p className="text-gray-800 break-words">{message.content}</p>
+              )}
+              {/* Timestamp */}
+              <span className="mt-2 text-xs text-gray-400 self-end">
+                {new Date(Date.now() - (messages.length - index - 1) * 2 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
           </div>
         ))}
       </div>

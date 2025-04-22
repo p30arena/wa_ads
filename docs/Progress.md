@@ -18,9 +18,11 @@
 | WhatsApp Ad Sending | ✅ COMPLETE | Ad sending logic implemented with dedicated service | `backend/src/services/AdJobService.ts`, `backend/src/services/WhatsAppService.ts` |
 | WebSocket Connection | ✅ COMPLETE | Real-time updates working with reconnection logic | `backend/src/websocket/`, `frontend/src/services/WebSocketService.ts` |
 | Moderation Panel | ✅ COMPLETE | Backend endpoints and frontend UI for job moderation and control | `backend/src/controllers/ModerationController.ts`, `frontend/src/components/ModerationPanel.tsx` |
-| Audience Management | ✅ COMPLETE | Contacts, groups, and phone book management | `backend/src/controllers/ContactController.ts`, `GroupController.ts` |
+| Audience Management | ✅ COMPLETE | Contacts, groups, phone book management, and audience group CRUD UI | `backend/src/controllers/ContactController.ts`, `GroupController.ts`, `frontend/src/components/AudienceGroupManager.tsx` |
 | Audience Groups | ✅ COMPLETE | Reusable audience groups for targeting | `backend/prisma/schema.prisma` (audience_groups table) |
-| Message Templates | ✅ COMPLETE | CRUD operations for templates | `backend/src/controllers/TemplateController.ts` |
+| Message Templates | ✅ COMPLETE | CRUD operations for templates, enhanced chat preview (avatars, timestamps) | `backend/src/controllers/TemplateController.ts`, `frontend/src/components/MessageTemplateEditor.tsx` |
+| UI Dark Mode | ✅ COMPLETE | Full dark mode support with theme switcher | `frontend/src/app/theme-context.tsx`, `frontend/src/components/layout/MainLayout.tsx` |
+| Multi-lingual Support | ✅ COMPLETE | English + Farsi, RTL for Farsi, language switcher | `frontend/src/i18n/`, `frontend/src/app/locale-context.tsx`, `frontend/src/components/layout/MainLayout.tsx` |
 | Storage & Persistence | ✅ UPDATED | Migrated from TypeORM to Prisma ORM | `backend/prisma/schema.prisma` |
 
 ## Development Status Summary
@@ -38,6 +40,10 @@
 - ✅ Created unified shared code structure (wa-shared)
 - ✅ Added Audience Groups entity
 - ✅ Fixed TypeScript errors in frontend components
+- ✅ Implemented Audience Group Management UI (CRUD in frontend)
+- ✅ Enhanced chat preview in Message Template Editor (avatars, timestamps)
+- ✅ Added full dark mode support (UI-wide theme switcher)
+- ✅ Added multi-lingual support (English + Farsi, RTL for Farsi, language switcher)
 
 ### Pending Implementation
 

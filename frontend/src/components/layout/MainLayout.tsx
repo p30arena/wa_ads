@@ -17,6 +17,9 @@ import { WhatsAppQRCode } from '@/components/WhatsAppQRCode';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/app/theme-context';
+import { useLocale } from '@/app/locale-context';
+import { t } from '@/i18n';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
@@ -36,6 +39,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const { status } = useWebSocket();
+  const { theme, setTheme } = useTheme();
+  const { locale, setLocale } = useLocale();
 
   return (
     <>
@@ -65,7 +70,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 leaveTo="-translate-x-full"
               >
                 <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background dark:bg-gray-900 px-6 pb-4">
                     <div className="flex h-16 shrink-0 items-center">
                       <img
                         className="h-8 w-auto"
@@ -78,7 +83,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                         <li>
                           <ul role="list" className="-mx-2 space-y-1">
                             {navigation.map((item) => (
-                              <li key={item.name}>
+                              <li key={t(item.name, locale)}>
                                 <Link
                                   href={item.href}
                                   className={cn(
@@ -97,7 +102,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                                     )}
                                     aria-hidden="true"
                                   />
-                                  {item.name}
+                                  {t(item.name, locale)}
                                 </Link>
                               </li>
                             ))}
@@ -114,7 +119,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
         {/* Static sidebar for desktop */}
         <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
+          <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border bg-background dark:bg-gray-900 px-6 pb-4">
             <div className="flex h-16 shrink-0 items-center">
               <img
                 className="h-8 w-auto"
@@ -127,13 +132,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 <li>
                   <ul role="list" className="-mx-2 space-y-1">
                     {navigation.map((item) => (
-                      <li key={item.name}>
+                      <li key={t(item.name, locale)}>
                         <Link
                           href={item.href}
                           className={cn(
                             pathname === item.href
-                              ? 'bg-gray-50 text-indigo-600'
-                              : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-50',
+                              ? 'bg-muted text-indigo-600 dark:bg-gray-800'
+                              : 'text-foreground hover:text-indigo-600 hover:bg-muted dark:hover:bg-gray-800',
                             'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
                           )}
                         >
@@ -146,7 +151,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                             )}
                             aria-hidden="true"
                           />
-                          {item.name}
+                          {t(item.name, locale)}
                         </Link>
                       </li>
                     ))}
@@ -159,12 +164,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
                         'h-2.5 w-2.5 rounded-full',
                         status.connected ? 'bg-green-500' : status.qrCode ? 'bg-yellow-500' : 'bg-red-500'
                       )} />
-                      <span>WhatsApp Status</span>
+                      <span>{t('WhatsApp Status', locale)}</span>
                     </div>
                     <p className="mt-1 text-xs text-gray-600">
-                      {status.connected ? 'Connected and ready' :
-                       status.qrCode ? 'Scan QR code in dashboard' :
-                       'Initializing connection...'}
+                      {status.connected ? t('Connected and ready', locale) :
+                       status.qrCode ? t('Scan QR code in dashboard', locale) :
+                       t('Initializing connection...', locale)}
                     </p>
                   </div>
                 </li>
@@ -173,8 +178,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
         </div>
 
-        <div className="lg:pl-72">
-          <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+        <div className={cn("lg:pl-72", locale === 'fa' && 'rtl font-sans')}> 
+          <div className={cn("sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8", "dark:bg-gray-900 dark:border-gray-700")}> 
             <button
               type="button"
               className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
@@ -185,15 +190,40 @@ export default function MainLayout({ children }: MainLayoutProps) {
             </button>
 
             {/* Separator */}
-            <div className="h-6 w-px bg-gray-200 lg:hidden" aria-hidden="true" />
+            <div className="h-6 w-px bg-gray-200 lg:hidden dark:bg-gray-700" aria-hidden="true" />
 
             <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
               <div className="flex flex-1" />
+              {/* Theme Switcher */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500 dark:text-gray-300">{t('Theme', locale)}</label>
+                <select
+                  className="rounded border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 text-xs px-2 py-1"
+                  value={theme}
+                  onChange={e => setTheme(e.target.value as any)}
+                >
+                  <option value="light">{t('Light', locale)}</option>
+                  <option value="dark">{t('Dark', locale)}</option>
+                  <option value="system">{t('System', locale)}</option>
+                </select>
+              </div>
+              {/* Language Switcher */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500 dark:text-gray-300">{t('Language', locale)}</label>
+                <select
+                  className="rounded border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 text-xs px-2 py-1"
+                  value={locale}
+                  onChange={e => setLocale(e.target.value as any)}
+                >
+                  <option value="en">English</option>
+                  <option value="fa">فارسی</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <main className="py-10">
-            <div className="px-4 sm:px-6 lg:px-8">
+          <main className={cn("py-10", locale === 'fa' && 'rtl')}> 
+            <div className={cn("px-4 sm:px-6 lg:px-8", locale === 'fa' && 'rtl')}> 
               {children}
             </div>
           </main>

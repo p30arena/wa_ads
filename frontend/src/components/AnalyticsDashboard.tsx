@@ -137,7 +137,7 @@ export function AnalyticsDashboard() {
           className={`px-3 py-1 rounded-md text-sm ${
             dateRange === '7d'
               ? 'bg-indigo-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-muted text-foreground hover:bg-accent dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700'
           }`}
         >
           7 Days
@@ -147,7 +147,7 @@ export function AnalyticsDashboard() {
           className={`px-3 py-1 rounded-md text-sm ${
             dateRange === '30d'
               ? 'bg-indigo-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-muted text-foreground hover:bg-accent dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700'
           }`}
         >
           30 Days
@@ -157,7 +157,7 @@ export function AnalyticsDashboard() {
           className={`px-3 py-1 rounded-md text-sm ${
             dateRange === '90d'
               ? 'bg-indigo-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-muted text-foreground hover:bg-accent dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700'
           }`}
         >
           90 Days
@@ -165,8 +165,8 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* Daily metrics chart */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
+      <div className="bg-card text-card-foreground p-6 rounded-lg shadow border border-border">
+        <h3 className="text-lg font-medium text-foreground mb-4">
           Daily Message Metrics
         </h3>
         <div className="h-80">
@@ -205,8 +205,8 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* Template performance chart */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
+      <div className="bg-card text-card-foreground p-6 rounded-lg shadow border border-border">
+        <h3 className="text-lg font-medium text-foreground mb-4">
           Template Performance
         </h3>
         <div className="h-80">
@@ -230,27 +230,27 @@ export function AnalyticsDashboard() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h4 className="text-sm font-medium text-gray-500">Total Messages</h4>
-          <p className="mt-2 text-3xl font-semibold text-gray-900">
+        <div className="bg-card text-card-foreground p-6 rounded-lg shadow border border-border">
+          <h4 className="text-sm font-medium text-muted-foreground">Total Messages</h4>
+          <p className="mt-2 text-3xl font-semibold text-foreground">
             {dailyStats.reduce((sum, day) => sum + day.sent, 0).toLocaleString()}
           </p>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h4 className="text-sm font-medium text-gray-500">
+        <div className="bg-card text-card-foreground p-6 rounded-lg shadow border border-border">
+          <h4 className="text-sm font-medium text-muted-foreground">
             Messages Delivered
           </h4>
-          <p className="mt-2 text-3xl font-semibold text-gray-900">
+          <p className="mt-2 text-3xl font-semibold text-foreground">
             {dailyStats
               .reduce((sum, day) => sum + day.delivered, 0)
               .toLocaleString()}
           </p>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h4 className="text-sm font-medium text-gray-500">
+        <div className="bg-card text-card-foreground p-6 rounded-lg shadow border border-border">
+          <h4 className="text-sm font-medium text-muted-foreground">
             Average Delivery Rate
           </h4>
-          <p className="mt-2 text-3xl font-semibold text-gray-900">
+          <p className="mt-2 text-3xl font-semibold text-foreground">
             {(
               (dailyStats.reduce((sum, day) => sum + day.deliveryRate, 0) /
                 dailyStats.length) |

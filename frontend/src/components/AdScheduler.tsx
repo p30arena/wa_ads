@@ -120,9 +120,9 @@ export function AdScheduler({ jobId, onScheduleSubmit }: AdSchedulerProps) {
   };
 
   return (
-    <div className="bg-white shadow sm:rounded-lg">
+    <div className="bg-card text-card-foreground shadow sm:rounded-lg border border-border">
       <div className="px-4 py-5 sm:p-6">
-        <h3 className="text-base font-semibold leading-6 text-gray-900">
+        <h3 className="text-base font-semibold leading-6 text-foreground">
           Schedule Campaign
         </h3>
         <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
@@ -242,7 +242,7 @@ export function AdScheduler({ jobId, onScheduleSubmit }: AdSchedulerProps) {
                           className={`flex h-8 w-12 items-center justify-center rounded-full text-sm font-medium ${
                             schedule.daysOfWeek?.includes(day)
                               ? 'bg-indigo-600 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'bg-muted text-foreground hover:bg-accent dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700'
                           }`}
                         >
                           {day}
@@ -280,7 +280,7 @@ export function AdScheduler({ jobId, onScheduleSubmit }: AdSchedulerProps) {
                     }
                     className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   />
-                  <span className="text-gray-500">to</span>
+                  <span className="text-muted-foreground">to</span>
                   <input
                     type="time"
                     value={slot.end}
