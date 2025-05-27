@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SelectContacts } from '@/components/SelectContacts';
@@ -131,65 +131,124 @@ export default function AudienceGroupsPage() {
     setIsEditDialogOpen(true);
   };
 
-  const GroupDialog = ({ isOpen, onClose, mode }: { isOpen: boolean; onClose: () => void; mode: 'create' | 'edit' }) => (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Create New Audience Group' : 'Edit Audience Group'}
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-4 py-4">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Name</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter group name"
-                disabled={isLoading}
-              />
-            </div>
+  // Create a separate component for the dialog to better manage its state
+  const GroupDialog = React.memo(({ isOpen, onClose, mode }: { isOpen: boolean; onClose: () => void; mode: 'create' | 'edit' }) => {
+    const [localName, setLocalName] = React.useState(name);
+    const [localSelectedContacts, setLocalSelectedContacts] = React.useState<string[]>(selectedContacts);
+    const [localSelectedGroups, setLocalSelectedGroups] = React.useState<string[]>(selectedGroups);
 
-            <div>
-              <label className="text-sm font-medium">Select Contacts</label>
-              <SelectContacts
-                selected={selectedContacts}
-                onChange={setSelectedContacts}
-              />
-            </div>
+    // Update local state when props change
+    React.useEffect(() => {
+      setLocalName(name);
+      setLocalSelectedContacts(selectedContacts);
+      setLocalSelectedGroups(selectedGroups);
+    }, [isOpen, name, selectedContacts, selectedGroups]);
 
-            <div>
-              <label className="text-sm font-medium">Select Groups</label>
-              <SelectGroups
-                selected={selectedGroups}
-                onChange={setSelectedGroups}
-              />
-            </div>
-          </div>
-        </div>
+    // Handle form submission
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      // Update parent state
+      setName(localName);
+      setSelectedContacts(localSelectedContacts);
+      setSelectedGroups(localSelectedGroups);
+      
+      // Call the appropriate handler
+      if (mode === 'create') {
+        handleCreate();
+      } else {
+        handleEdit();
+      }
+    };
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={mode === 'create' ? handleCreate : handleEdit}
-            disabled={isLoading}
+    // Only render when open
+    if (!isOpen) return null;
+
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <form 
+            onSubmit={handleSubmit}
+            onKeyDown={(e) => {
+              // Prevent form submission on Enter key
+              if (e.key === 'Enter') {
+                e.preventDefault();
+              }
+            }}
           >
-            {isLoading ? 'Loading...' : mode === 'create' ? 'Create' : 'Save Changes'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+            <DialogHeader>
+              <DialogTitle>
+                {mode === 'create' ? 'Create New Audience Group' : 'Edit Audience Group'}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Name</label>
+                  <Input
+                    value={localName}
+                    onChange={(e) => setLocalName(e.target.value)}
+                    placeholder="Enter group name"
+                    disabled={isLoading}
+                    onKeyDown={(e) => {
+                      // Prevent form submission on Enter key
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Select Contacts</label>
+                  <SelectContacts
+                    selected={localSelectedContacts}
+                    onChange={setLocalSelectedContacts}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Select Groups</label>
+                  <SelectGroups
+                    selected={localSelectedGroups}
+                    onChange={setLocalSelectedGroups}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button 
+                type="button"
+                variant="outline" 
+                onClick={onClose} 
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Loading...' : mode === 'create' ? 'Create' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  });
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Audience Groups</h1>
-        <Button onClick={() => setIsCreateDialogOpen(true)} disabled={isLoading}>
+        <Button 
+          type="button"
+          onClick={() => setIsCreateDialogOpen(true)} 
+          disabled={isLoading}
+        >
           Create New Group
         </Button>
       </div>

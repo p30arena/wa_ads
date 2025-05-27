@@ -30,7 +30,7 @@ const zBooleanInput = () => z.string().transform(s => s === "true" ? true : fals
 const contactSchema = z.object({
   id: z.string(),
   name: z.string(),
-  phoneNumber: z.string(),
+  phoneNumber: z.string().optional().default(''),
   isMyContact: z.boolean(),
   profilePicUrl: z.string().optional(),
   status: z.string().optional(),
