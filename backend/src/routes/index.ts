@@ -57,9 +57,40 @@ const adJobSchema = z.object({
   status: z.enum(['pending', 'approved', 'rejected', 'running', 'completed', 'failed', 'stopped'] as const),
 });
 
+// Input schema for creating/updating templates
+const messageInputSchema = z.union([
+  z.string(),
+  z.object({
+    type: z.string(),
+    content: z.string(),
+    caption: z.string().optional(),
+  })
+]);
+
+// Schema for the database (stored format)
 const messageTemplateSchema = z.object({
   title: z.string(),
-  messages: z.array(z.string()),
+  messages: z.array(messageInputSchema),
+});
+
+// Schema for API responses
+const messageOutputSchema = z.union([
+  z.string(),
+  z.object({
+    type: z.string(),
+    content: z.string(),
+    caption: z.string().optional(),
+  })
+]);
+
+const templateResponseSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  messages: z.array(messageOutputSchema),
+  messageIds: z.array(z.string()).optional(),
+  isSentToSelf: z.boolean().optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });
 
 const messageTemplateWithIdsSchema = messageTemplateSchema.extend({
@@ -242,19 +273,64 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           method: 'get',
           input: z.object({}),
           output: z.object({
-            items: z.array(messageTemplateSchema.extend({ id: z.number(), createdAt: z.date(), updatedAt: z.date() })),
+            items: z.array(templateResponseSchema),
           }),
           handler: async () => {
             const templates = await prisma.messageTemplate.findMany({
               orderBy: { createdAt: 'desc' },
             });
-            return { items: templates.map(t => ({
-              id: t.id,
-              title: t.title,
-              messages: t.messages.split(','),
-              createdAt: t.createdAt,
-              updatedAt: t.updatedAt
-            })) };
+            
+            const parsedTemplates = templates.map(t => {
+              // Parse the messages array
+              let messages;
+              if (Array.isArray(t.messages)) {
+                // If it's already an array, use it directly
+                messages = t.messages;
+              } else if (typeof t.messages === 'string') {
+                try {
+                  // Try to parse as JSON array first
+                  messages = JSON.parse(t.messages);
+                  if (!Array.isArray(messages)) {
+                    // If not an array, try splitting by comma as fallback
+                    messages = t.messages.split(',').map(m => m.trim());
+                  }
+                } catch (e) {
+                  // If parsing fails, split by comma
+                  messages = t.messages.split(',').map(m => m.trim());
+                }
+              } else {
+                // Fallback to empty array
+                messages = [];
+              }
+              
+              // Ensure all messages are properly parsed
+              messages = messages.map(msg => {
+                if (typeof msg === 'string') {
+                  try {
+                    // Try to parse as JSON if it looks like a stringified object
+                    if ((msg.startsWith('{') && msg.endsWith('}')) || 
+                        (msg.startsWith('[') && msg.endsWith(']'))) {
+                      return JSON.parse(msg);
+                    }
+                  } catch (e) {
+                    // If parsing fails, return as is
+                  }
+                }
+                return msg;
+              });
+              
+              return {
+                id: t.id,
+                title: t.title,
+                messages,
+                messageIds: t.messageIds ? t.messageIds.split(',') : [],
+                isSentToSelf: t.isSentToSelf || false,
+                createdAt: t.createdAt,
+                updatedAt: t.updatedAt
+              };
+            });
+            
+            return { items: parsedTemplates };
           },
         }),
         create: e.build({
@@ -271,19 +347,34 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             const mediaMessages: Array<{url: string, caption?: string}> = [];
             
             for (const message of input.messages) {
-              try {
-                const parsed = JSON.parse(message);
-                if (parsed.type === 'media') {
+              // If message is already an object (from the new format)
+              if (typeof message === 'object' && message !== null) {
+                if (message.type === 'media') {
                   mediaMessages.push({
-                    url: parsed.content,
-                    caption: parsed.caption
+                    url: message.content,
+                    caption: message.caption
                   });
                 } else {
-                  textMessages.push(parsed.content);
+                  textMessages.push(message.content);
                 }
-              } catch (e) {
-                // If parsing fails, treat as plain text
-                textMessages.push(message);
+              } 
+              // If message is a string (from the old format or plain text)
+              else if (typeof message === 'string') {
+                try {
+                  // Try to parse as JSON for backward compatibility
+                  const parsed = JSON.parse(message);
+                  if (parsed.type === 'media') {
+                    mediaMessages.push({
+                      url: parsed.content,
+                      caption: parsed.caption
+                    });
+                  } else {
+                    textMessages.push(parsed.content || parsed);
+                  }
+                } catch (e) {
+                  // If parsing fails, treat as plain text
+                  textMessages.push(message);
+                }
               }
             }
 
@@ -298,11 +389,19 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             
             const allMessageIds = [...textMessageIds, ...mediaMessageIds];
             
+            // Prepare messages for storage
+            const messagesForStorage = input.messages.map((msg: string | { type: string; content: string; caption?: string }) => {
+              // If it's already a string, use it as is
+              if (typeof msg === 'string') return msg;
+              // Otherwise, stringify the object
+              return JSON.stringify(msg);
+            });
+            
             // Create and save the template with message IDs
             const savedTemplate = await prisma.messageTemplate.create({
               data: {
                 title: input.title,
-                messages: input.messages.join(','),
+                messages: JSON.stringify(messagesForStorage),
                 messageIds: allMessageIds.join(','),
                 isSentToSelf: true,
               }
@@ -326,12 +425,20 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               throw new Error('Template not found');
             }
             
+            // Prepare messages for storage
+            const messagesForStorage = input.template.messages.map((msg: string | { type: string; content: string; caption?: string }) => {
+              // If it's already a string, use it as is
+              if (typeof msg === 'string') return msg;
+              // Otherwise, stringify the object
+              return JSON.stringify(msg);
+            });
+            
             // Update fields
             await prisma.messageTemplate.update({
               where: { id: input.id },
               data: {
                 title: input.template.title,
-                messages: input.template.messages.join(','),
+                messages: JSON.stringify(messagesForStorage),
                 updatedAt: new Date(),
               }
             });

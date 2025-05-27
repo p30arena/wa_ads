@@ -43,12 +43,47 @@ export default function TemplatesPage() {
     queryKey: ['templates'],
     queryFn: async () => {
       const response = await templateApi.getTemplates();
-      return response.data;
+      
+      // The API returns { status: string; data: { items: MessageTemplate[] } }
+      const responseData = response.data.data;
+      
+      if (!responseData || !Array.isArray(responseData.items)) {
+        console.error('Unexpected API response format:', responseData);
+        return { items: [] };
+      }
+      
+      // Transform the response to ensure messages are in the correct format
+      const items = responseData.items.map((template: MessageTemplate) => ({
+        ...template,
+        messages: template.messages.map((msg) => {
+          if (typeof msg === 'string') {
+            try {
+              // Try to parse stringified JSON objects
+              const parsed = JSON.parse(msg);
+              return typeof parsed === 'object' ? parsed : { type: 'text', content: msg };
+            } catch (e) {
+              return { type: 'text', content: msg };
+            }
+          }
+          return msg;
+        })
+      }));
+      return { items };
     },
   });
 
-  const updateMutation = useMutation({    mutationFn: async ({ id, template }: { id: number, template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'> }) => {
-      const response = await templateApi.updateTemplate(id, template);
+  const updateMutation = useMutation({    
+    mutationFn: async ({ id, template }: { id: number, template: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'> }) => {
+      // Ensure messages are in the correct format
+      const formattedTemplate = {
+        ...template,
+        messages: template.messages.map(msg => ({
+          type: msg.type,
+          content: msg.content,
+          ...(msg.caption && { caption: msg.caption })
+        }))
+      };
+      const response = await templateApi.updateTemplate(id, formattedTemplate);
       return response.data;
     },
     onSuccess: () => {
@@ -64,7 +99,16 @@ export default function TemplatesPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
-      const response = await templateApi.createTemplate(data);
+      // Ensure messages are in the correct format
+      const formattedData = {
+        ...data,
+        messages: data.messages.map(msg => ({
+          type: msg.type,
+          content: msg.content,
+          ...(msg.caption && { caption: msg.caption })
+        }))
+      };
+      const response = await templateApi.createTemplate(formattedData);
       return response.data;
     },
     onSuccess: () => {
@@ -275,7 +319,7 @@ export default function TemplatesPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {templates && (templates as any).items?.map((template: MessageTemplate) => (
+          {templates?.items?.map((template: MessageTemplate) => (
             <TableRow key={template.id}>
               <TableCell>{template.title}</TableCell>
               <TableCell className="max-w-md">
