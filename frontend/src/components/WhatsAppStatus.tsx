@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { whatsappApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,6 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 
 export function WhatsAppStatus() {
   const [isResetting, setIsResetting] = useState(false);
-
   const [isRetrying, setIsRetrying] = useState(false);
   const { status: wsStatus, retryWhatsAppConnection } = useWebSocket();
 
@@ -27,7 +26,6 @@ export function WhatsAppStatus() {
     try {
       setIsResetting(true);
       await whatsappApi.resetSession();
-      // Option 1: refetch status if you have a query, or reload page for now
       window.location.reload();
     } catch (err) {
       console.error('Error resetting WhatsApp session:', err);
@@ -42,8 +40,6 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.connected) {
-    // No reset button when connected
-
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -62,36 +58,6 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.qrCode) {
-    // Show reset button when QR code is shown
-    return (
-      <Card className="max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>WhatsApp QR Code</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertDescription>
-              Please scan this QR code with your WhatsApp mobile app to connect.
-            </AlertDescription>
-          </Alert>
-          <div className="mt-4 flex justify-center">
-            <img
-              src={`data:image/png;base64,${Buffer.from(wsStatus.qrCode).toString('base64')}`}
-              alt="WhatsApp QR Code"
-              className="h-64 w-64"
-            />
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button onClick={handleResetSession} disabled={isResetting} variant="secondary">
-            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isResetting ? 'Resetting...' : 'Reset WhatsApp Session'}
-          </Button>
-        </CardFooter>
-      </Card>
-    );
-    // Show reset button when QR code is shown
-
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -111,12 +77,27 @@ export function WhatsAppStatus() {
             />
           </div>
         </CardContent>
+        <CardFooter className="flex gap-2">
+          <Button onClick={handleResetSession} disabled={isResetting} variant="outline">
+            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isResetting ? 'Resetting...' : 'Reset Session'}
+          </Button>
+          <Button onClick={handleRetryInitialization} disabled={isRetrying}>
+            {isRetrying ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              'Retry Connection'
+            )}
+          </Button>
+        </CardFooter>
       </Card>
     );
   }
 
   if (wsStatus.initializationStatus === 'initializing') {
-    // Show reset button during initializing
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -130,90 +111,91 @@ export function WhatsAppStatus() {
             </AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
-          <Button onClick={handleResetSession} disabled={isResetting} variant="secondary">
-            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isResetting ? 'Resetting...' : 'Reset WhatsApp Session'}
+        <CardFooter className="flex justify-end">
+          <Button 
+            onClick={handleResetSession} 
+            variant="outline"
+            disabled={isResetting}
+          >
+            {isResetting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Resetting...
+              </>
+            ) : (
+              'Reset Session'
+            )}
           </Button>
         </CardFooter>
       </Card>
     );
-    // Show reset button during initializing
-
-    return (
-      <Card className="max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>WhatsApp Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertDescription className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Initializing WhatsApp connection...
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
   }
 
-  if (wsStatus.initializationStatus === 'timeout') {
-    // Show reset button on timeout
-
+  if (wsStatus.initializationStatus === 'timeout' || wsStatus.initializationStatus === 'error') {
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
-          <CardTitle>WhatsApp Initialization Timeout</CardTitle>
+          <CardTitle>
+            {wsStatus.initializationStatus === 'timeout' 
+              ? 'Connection Timeout' 
+              : 'Connection Error'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
             <AlertDescription>
-              WhatsApp client initialization timed out. This might be due to network issues or server problems.
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  {wsStatus.initializationStatus === 'timeout'
+                    ? 'Connection to WhatsApp timed out. Please try again.'
+                    : 'Failed to connect to WhatsApp. Please try again.'}
+                </div>
+                {wsStatus.initializationError && (
+                  <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                    {wsStatus.initializationError}
+                  </div>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex gap-2">
           <Button 
             onClick={handleRetryInitialization} 
             disabled={isRetrying}
+            className="flex-1"
           >
-            {isRetrying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isRetrying ? 'Retrying...' : 'Retry Initialization'}
+            {isRetrying ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              'Retry Connection'
+            )}
+          </Button>
+          <Button 
+            onClick={handleResetSession} 
+            variant="outline"
+            disabled={isResetting}
+            className="flex-1"
+          >
+            {isResetting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Resetting...
+              </>
+            ) : (
+              'Reset Session'
+            )}
           </Button>
         </CardFooter>
       </Card>
     );
   }
 
-  if (wsStatus.initializationStatus === 'error') {
-    // Show reset button on error
-
-    return (
-      <Card className="max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>WhatsApp Initialization Error</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertDescription>
-              {wsStatus.initializationError || 'An error occurred during initialization'}
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-        <CardFooter>
-          <Button 
-            onClick={handleRetryInitialization} 
-            disabled={isRetrying}
-          >
-            {isRetrying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isRetrying ? 'Retrying...' : 'Retry Initialization'}
-          </Button>
-        </CardFooter>
-      </Card>
-    );
-  }
-
-  // Default error state
+  // Default state when not connected and no specific status
   return (
     <Card className="max-w-md mx-auto">
       <CardHeader>
@@ -222,7 +204,15 @@ export function WhatsAppStatus() {
       <CardContent>
         <Alert variant="destructive">
           <AlertDescription>
-            WhatsApp is not connected. Please wait while we establish a connection.
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-red-500" />
+              Not connected to WhatsApp
+            </div>
+            {wsStatus.initializationError && (
+              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                {wsStatus.initializationError}
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       </CardContent>
@@ -230,17 +220,31 @@ export function WhatsAppStatus() {
         <Button 
           onClick={handleRetryInitialization} 
           disabled={isRetrying}
+          className="flex-1"
         >
-          {isRetrying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isRetrying ? 'Retrying...' : 'Retry Connection'}
+          {isRetrying ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Retrying...
+            </>
+          ) : (
+            'Retry Connection'
+          )}
         </Button>
         <Button 
           onClick={handleResetSession} 
+          variant="outline"
           disabled={isResetting}
-          variant="secondary"
+          className="flex-1"
         >
-          {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isResetting ? 'Resetting...' : 'Reset WhatsApp Session'}
+          {isResetting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Resetting...
+            </>
+          ) : (
+            'Reset Session'
+          )}
         </Button>
       </CardFooter>
     </Card>

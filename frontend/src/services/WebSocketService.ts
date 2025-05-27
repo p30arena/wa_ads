@@ -2,6 +2,8 @@ import { WSEventType, WSMessage } from 'wa-shared';
 export type { WSEventType };
 import { EventEmitter } from 'events';
 
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/^http/, 'ws');
+
 const debug = (message: string, ...args: any[]) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(`[WebSocket] ${message}`, ...args);
@@ -27,8 +29,10 @@ export class WebSocketService extends EventEmitter {
 
   private constructor(url: string) {
     super();
-    this.url = url;
-    debug('Initializing WebSocket service', { url });
+    // Ensure we have a proper WebSocket URL
+    const wsUrl = url.startsWith('ws') ? url : `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+    this.url = wsUrl;
+    debug('Initializing WebSocket service', { url: wsUrl });
     this.connect();
   }
 

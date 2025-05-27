@@ -164,12 +164,34 @@ export class WhatsAppService extends EventEmitter {
     }
   }
 
-  private async handleRetry() {
+  public async handleRetry() {
     try {
       console.log('[WhatsAppService] Retrying WhatsApp initialization...');
-      // Destroy the existing client
-      await this.client.destroy();
-      // Create a new client instance
+      
+      // Update status to show we're retrying
+      this.initializationStatus = 'initializing';
+      this.initializationError = null;
+      this.isReady = false;
+      
+      // Notify clients that we're retrying
+      this.wsManager.broadcast('whatsapp:state', {
+        connected: false,
+        qrCode: null,
+        initializationStatus: 'initializing',
+        initializationError: null
+      });
+
+      // Clean up existing client if it exists
+      if (this.client) {
+        try {
+          this.client.removeAllListeners();
+          await this.client.destroy();
+        } catch (error) {
+          console.error('[WhatsAppService] Error destroying old client:', error);
+        }
+      }
+
+      // Create a new client instance with updated configuration
       this.client = new Client({
         takeoverOnConflict: true,
         authStrategy: new LocalAuth(),
@@ -179,24 +201,49 @@ export class WhatsAppService extends EventEmitter {
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--disable-extensions'
-          ]
-        }
+            '--disable-extensions',
+            '--disable-software-rasterizer',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding'
+          ],
+          headless: true
+        },
+        webVersion: '2.2413.51'
       });
+
       // Set up event listeners and initialize
       this.setupEventListeners();
       await this.initialize();
+      
+      console.log('[WhatsAppService] Retry completed successfully');
     } catch (error) {
       console.error('[WhatsAppService] Retry failed:', error);
-      this.wsManager.broadcast('whatsapp:status', {
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error during retry',
-        timestamp: new Date()
+      this.initializationStatus = 'error';
+      this.initializationError = error instanceof Error ? error.message : 'Unknown error during retry';
+      this.isReady = false;
+      
+      this.wsManager.broadcast('whatsapp:state', {
+        connected: false,
+        qrCode: null,
+        initializationStatus: 'error',
+        initializationError: this.initializationError
       });
+      
+      // Schedule a retry if we're still having issues
+      setTimeout(() => this.handleRetry(), 5000);
     }
   }
 
   private setupEventListeners() {
+    // Handle WebSocket messages
+    this.wsManager.on('whatsapp:retry', () => {
+      console.log('[WhatsAppService] Received retry request');
+      this.initializationStatus = 'initializing';
+      this.initializationError = null;
+      this.handleRetry();
+    });
+
     this.client.on('qr', (qr) => {
       if (!qr) {
         console.error('[WhatsAppService] Received invalid QR code');

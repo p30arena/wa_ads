@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { WebSocketService, WSEventType } from '@/services/WebSocketService';
+import { whatsappApi } from '@/services/api';
 
 interface WhatsAppStatus {
   connected: boolean;
@@ -15,7 +16,9 @@ interface UseWebSocketReturn {
   retryWhatsAppConnection: () => void;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+// Derive WebSocket URL from API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const WS_URL = API_URL.replace(/^http/, 'ws');
 
 export function useWebSocket(): UseWebSocketReturn {
   const [ws, setWs] = useState<WebSocketService | null>(null);
@@ -169,12 +172,41 @@ export function useWebSocket(): UseWebSocketReturn {
     }
   }, [ws, logEvent]);
 
-  const retryWhatsAppConnection = useCallback(() => {
-    if (ws?.isConnected()) {
-      logEvent('Retrying WhatsApp Connection');
-      ws.send('whatsapp:retry', {});
-    } else {
-      console.warn('[WebSocket] Cannot retry WhatsApp: not connected');
+  const retryWhatsAppConnection = useCallback(async () => {
+    logEvent('Retrying WhatsApp Connection');
+    
+    // Reset status to show loading state
+    setStatus(prev => ({
+      ...prev,
+      initializationStatus: 'initializing',
+      initializationError: null,
+      qrCode: null
+    }));
+
+    try {
+      // Try to force a reconnection if not connected
+      if (!ws?.isConnected()) {
+        console.warn('[WebSocket] Not connected, attempting to reconnect...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay before retry
+      }
+      
+      // Send retry message if connected, otherwise the message will be queued
+      ws?.send('whatsapp:retry', {});
+      
+      // Also trigger a new initialization via the API service as a fallback
+      try {
+        await whatsappApi.initialize();
+      } catch (httpError) {
+        console.error('Failed to initialize via API:', httpError);
+        // Continue with WebSocket approach even if API call fails
+      }
+    } catch (error) {
+      console.error('Error during retry:', error);
+      setStatus(prev => ({
+        ...prev,
+        initializationStatus: 'error',
+        initializationError: error instanceof Error ? error.message : 'Failed to retry connection'
+      }));
     }
   }, [ws, logEvent]);
 

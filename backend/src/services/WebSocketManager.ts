@@ -18,6 +18,7 @@ export class WebSocketManager extends EventEmitter {
     getQRCode: () => string | null;
     isConnected: () => boolean;
     initialize: () => Promise<void>;
+    handleRetry?: () => Promise<void>; // Add handleRetry to the interface
   } | null = null; // Will be set by setWhatsAppService
   private messageStats = {
     received: 0,
@@ -89,8 +90,29 @@ export class WebSocketManager extends EventEmitter {
           // Handle retry request
           if (parsed.type === 'whatsapp:retry' as WSEventType && this.whatsAppService) {
             debug('Received retry request');
-            this.whatsAppService.initialize().catch(error => {
+            
+            // Notify all clients that we're retrying
+            this.broadcast('whatsapp:state', {
+              connected: false,
+              qrCode: null,
+              initializationStatus: 'initializing',
+              initializationError: null
+            });
+            
+            // Use handleRetry if available, otherwise fall back to initialize
+            const retryPromise = this.whatsAppService.handleRetry 
+              ? this.whatsAppService.handleRetry() 
+              : this.whatsAppService.initialize();
+              
+            retryPromise.catch(error => {
               debugError('Failed to retry WhatsApp initialization:', error);
+              // Notify clients of the error
+              this.broadcast('whatsapp:state', {
+                connected: false,
+                qrCode: null,
+                initializationStatus: 'error',
+                initializationError: error instanceof Error ? error.message : 'Unknown error during retry'
+              });
             });
           }
 
