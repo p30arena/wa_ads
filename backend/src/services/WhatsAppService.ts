@@ -41,6 +41,59 @@ interface GroupData {
 }
 
 export class WhatsAppService extends EventEmitter {
+  /**
+   * Clear WhatsApp session and cache, then re-initialize client for re-auth (QR)
+   */
+  public async clearSessionAndReinit(): Promise<void> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    try {
+      this.stopStateChecks();
+      if (this.client) {
+        await this.client.destroy();
+      }
+      // Remove session and cache folders
+      const baseDir = path.resolve(__dirname, '../../');
+      const authDir = path.join(baseDir, '.wwebjs_auth');
+      const cacheDir = path.join(baseDir, '.wwebjs_cache');
+      for (const dir of [authDir, cacheDir]) {
+        try {
+          await fs.rm(dir, { recursive: true, force: true });
+        } catch (err) {
+          // Ignore if already deleted
+        }
+      }
+      // Recreate client
+      this.client = new Client({
+        takeoverOnConflict: true,
+        authStrategy: new LocalAuth(),
+        puppeteer: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+          ],
+          headless: true
+        }
+      });
+      this.setupEventListeners();
+      this.setupRateLimiterEvents();
+      await this.initialize();
+    } catch (error) {
+      console.error('[WhatsAppService] Failed to clear session and re-initialize:', error);
+      this.wsManager.broadcast('whatsapp:status', {
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error during session reset',
+        timestamp: new Date()
+      });
+      throw error;
+    }
+  }
+
   private client: Client;
   private wsManager: WebSocketManager;
   private rateLimiter: RateLimiterService;

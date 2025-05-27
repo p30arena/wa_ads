@@ -2,6 +2,7 @@ import { Routing, defaultEndpointsFactory, Middleware } from 'express-zod-api';
 import { z } from 'zod';
 import prisma from '../config/prisma';
 import { WhatsAppService } from '../services/WhatsAppService';
+import { whatsappEndpoints } from '../controllers/WhatsAppController';
 import { WebSocketManager } from '../services/WebSocketManager';
 import { AdJobService } from '../services/AdJobService';
 import { WSEventType } from 'wa-shared';
@@ -126,6 +127,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
   const routing: Routing = {
     api: {
       whatsapp: {
+        resetSession: whatsappEndpoints.resetSession,
         contacts: e.build({
           method: 'get',
           input: z.object({

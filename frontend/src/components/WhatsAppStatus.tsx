@@ -7,6 +7,8 @@ import { Loader2 } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 export function WhatsAppStatus() {
+  const [isResetting, setIsResetting] = useState(false);
+
   const [isRetrying, setIsRetrying] = useState(false);
   const { status: wsStatus, retryWhatsAppConnection } = useWebSocket();
 
@@ -21,11 +23,27 @@ export function WhatsAppStatus() {
     }
   };
 
+  const handleResetSession = async () => {
+    try {
+      setIsResetting(true);
+      await whatsappApi.resetSession();
+      // Option 1: refetch status if you have a query, or reload page for now
+      window.location.reload();
+    } catch (err) {
+      console.error('Error resetting WhatsApp session:', err);
+      alert('Failed to reset WhatsApp session.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   if (!wsStatus) {
     return null;
   }
 
   if (wsStatus.connected) {
+    // No reset button when connected
+
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -44,6 +62,36 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.qrCode) {
+    // Show reset button when QR code is shown
+    return (
+      <Card className="max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>WhatsApp QR Code</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertDescription>
+              Please scan this QR code with your WhatsApp mobile app to connect.
+            </AlertDescription>
+          </Alert>
+          <div className="mt-4 flex justify-center">
+            <img
+              src={`data:image/png;base64,${Buffer.from(wsStatus.qrCode).toString('base64')}`}
+              alt="WhatsApp QR Code"
+              className="h-64 w-64"
+            />
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={handleResetSession} disabled={isResetting} variant="secondary">
+            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isResetting ? 'Resetting...' : 'Reset WhatsApp Session'}
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+    // Show reset button when QR code is shown
+
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -68,6 +116,30 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.initializationStatus === 'initializing') {
+    // Show reset button during initializing
+    return (
+      <Card className="max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>WhatsApp Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertDescription className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Initializing WhatsApp connection...
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={handleResetSession} disabled={isResetting} variant="secondary">
+            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isResetting ? 'Resetting...' : 'Reset WhatsApp Session'}
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+    // Show reset button during initializing
+
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -86,6 +158,8 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.initializationStatus === 'timeout') {
+    // Show reset button on timeout
+
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -112,6 +186,8 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.initializationStatus === 'error') {
+    // Show reset button on error
+
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
@@ -150,13 +226,21 @@ export function WhatsAppStatus() {
           </AlertDescription>
         </Alert>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex gap-2">
         <Button 
           onClick={handleRetryInitialization} 
           disabled={isRetrying}
         >
           {isRetrying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isRetrying ? 'Retrying...' : 'Retry Connection'}
+        </Button>
+        <Button 
+          onClick={handleResetSession} 
+          disabled={isResetting}
+          variant="secondary"
+        >
+          {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isResetting ? 'Resetting...' : 'Reset WhatsApp Session'}
         </Button>
       </CardFooter>
     </Card>

@@ -32,6 +32,7 @@ interface PaginatedResponse<T> {
 }
 
 export const whatsappApi = {
+  resetSession: () => api.post<{ success: boolean; message?: string }>('/api/whatsapp/resetSession'),
   getStatus: () => api.get<ApiResponse<{
     connected: boolean;
     qrCode: string | null;
