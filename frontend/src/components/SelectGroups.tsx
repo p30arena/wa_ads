@@ -26,8 +26,8 @@ export function SelectGroups({ selected, onChange }: SelectGroupsProps) {
     try {
       setIsLoading(true);
       setError(null);
-      const { data } = await whatsappApi.getGroups();
-      setGroups(data.data.items);
+      const response = await whatsappApi.getGroups();
+      setGroups(response.items);
     } catch (err) {
       console.error('Error fetching groups:', err);
       setError('Failed to load groups. Please try again later.');
