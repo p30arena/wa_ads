@@ -41,6 +41,12 @@ interface GroupData {
 }
 
 export class WhatsAppService extends EventEmitter {
+  public async close(): Promise<void> {
+    this.stopStateChecks();
+    if (this.client) {
+      await this.client.destroy();
+    }
+  }
   /**
    * Clear WhatsApp session and cache, then re-initialize client for re-auth (QR)
    */

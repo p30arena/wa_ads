@@ -52,7 +52,7 @@ const gracefulShutdown = async (signal: string) => {
     if (whatsappService) {
       console.log('Disconnecting WhatsApp client...');
       try {
-        await whatsappService.clearSessionAndReinit();
+        await whatsappService.close();
       } catch (error) {
         console.error('Error during WhatsApp client cleanup:', error);
       }

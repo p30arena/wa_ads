@@ -30,7 +30,7 @@ const zBooleanInput = () => z.string().transform(s => s === "true" ? true : fals
 const contactSchema = z.object({
   id: z.string(),
   name: z.string(),
-  phoneNumber: z.string().optional().default(''),
+  phoneNumber: z.string().nullable().transform(val => val ?? ''),
   isMyContact: z.boolean(),
   profilePicUrl: z.string().optional(),
   status: z.string().optional(),
@@ -176,7 +176,17 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               throw new Error('WhatsApp client is not connected');
             }
 
-            const contacts = await options.whatsappService.getContacts();
+            let contacts = await options.whatsappService.getContacts();
+            
+            // Apply search filter if search term is provided
+            if (input.search) {
+              const searchTerm = input.search.toLowerCase();
+              contacts = contacts.filter(contact => 
+                contact.name.toLowerCase().includes(searchTerm) ||
+                contact.phoneNumber.includes(searchTerm)
+              );
+            }
+            
             const startIndex = (input.page - 1) * input.pageSize;
             const endIndex = startIndex + input.pageSize;
             
