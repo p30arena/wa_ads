@@ -145,4 +145,22 @@ export class JobSchedulerService {
   public async rescheduleJob(jobId: number, newScheduledTime: Date): Promise<void> {
     await this.scheduleJob(jobId, newScheduledTime);
   }
+
+  /**
+   * Stop the scheduler and clean up all scheduled jobs
+   */
+  public async stop(): Promise<void> {
+    console.log(`Stopping job scheduler, cleaning up ${this.scheduledJobs.size} scheduled jobs...`);
+    
+    // Clear all timeouts
+    for (const [jobId, scheduledJob] of this.scheduledJobs.entries()) {
+      clearTimeout(scheduledJob.timeoutId);
+      console.log(`Cancelled scheduled job ${jobId}`);
+    }
+    
+    // Clear the scheduled jobs map
+    this.scheduledJobs.clear();
+    
+    console.log('Job scheduler stopped');
+  }
 }

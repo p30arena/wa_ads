@@ -160,34 +160,54 @@ export class WebSocketManager extends EventEmitter {
   }
 
   public broadcast(type: WSEventType, data: any) {
-    const message = JSON.stringify({ type, data });
+    const message = { type, data };
+    const messageString = JSON.stringify(message);
     let sentCount = 0;
     let failedCount = 0;
 
     this.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         try {
-          client.send(message);
+          client.send(messageString);
           sentCount++;
           this.messageStats.sent++;
         } catch (error) {
           failedCount++;
           debugError('Failed to send to client:', error);
-          // Remove failed client
           this.clients.delete(client);
         }
       } else if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
-        // Clean up closed connections
         this.clients.delete(client);
       }
     });
 
-    debug('Broadcast message', {
-      type,
-      data: type === 'whatsapp:qr' ? { qrLength: data.qr?.length } : data,
-      recipients: sentCount,
-      failed: failedCount,
-      totalClients: this.clients.size
+    if (failedCount > 0) {
+      debug(`Broadcast: ${sentCount} sent, ${failedCount} failed`);
+    }
+  }
+
+  /**
+   * Close all active WebSocket connections
+   */
+  public closeAllConnections(): void {
+    debug(`Closing all WebSocket connections (${this.clients.size} clients)`);
+    
+    // Send close message to all clients
+    this.broadcast('server:shutdown' as WSEventType, { message: 'Server is shutting down' });
+    
+    // Close all connections
+    this.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.close(1001, 'Server is shutting down');
+      }
+    });
+    
+    // Clear the clients set
+    this.clients.clear();
+    
+    // Stop the WebSocket server
+    this.wss.close(() => {
+      debug('WebSocket server closed');
     });
   }
 
