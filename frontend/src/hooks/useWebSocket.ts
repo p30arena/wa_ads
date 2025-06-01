@@ -79,24 +79,36 @@ export function useWebSocket(): UseWebSocketReturn {
         qrStart: data.qr.slice(0, 20)
       });
 
+      // Ensure we have a valid QR code string
+      const qrCode = typeof data.qr === 'string' ? data.qr.trim() : '';
+      
+      if (!qrCode) {
+        console.error('[useWebSocket] Received empty QR code');
+        return;
+      }
+
+      console.log('[useWebSocket] Processing QR code:', {
+        length: qrCode.length,
+        startsWith: qrCode.substring(0, 20)
+      });
+
       setStatus((prev) => {
         // Only update if QR code is different
-        if (prev.qrCode === data.qr) {
+        if (prev.qrCode === qrCode) {
+          console.log('[useWebSocket] QR code unchanged, skipping update');
           return prev;
         }
 
+
         const newStatus: WhatsAppStatus = {
           ...prev,
-          qrCode: data.qr,
+          qrCode: qrCode,
           connected: false, // Reset connected state when new QR code arrives
-          initializationStatus: 'initializing'
+          initializationStatus: 'initializing',
+          initializationError: null
         };
 
-        console.log('[useWebSocket] Updated status:', {
-          ...newStatus,
-          qrCode: newStatus.qrCode ? `${newStatus.qrCode.slice(0, 20)}...` : null
-        });
-
+        console.log('[useWebSocket] Updated status with new QR code');
         return newStatus;
       });
     });

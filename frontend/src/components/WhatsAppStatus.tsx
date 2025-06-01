@@ -58,23 +58,43 @@ export function WhatsAppStatus() {
   }
 
   if (wsStatus.qrCode) {
+    // Generate QR code URL using a reliable QR code generation service
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(wsStatus.qrCode)}`;
+    
+    console.log('Displaying QR code:', {
+      qrCodeLength: wsStatus.qrCode.length,
+      qrCodeStartsWith: wsStatus.qrCode.substring(0, 20)
+    });
+
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader>
           <CardTitle>WhatsApp QR Code</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Alert>
             <AlertDescription>
               Please scan this QR code with your WhatsApp mobile app to connect.
             </AlertDescription>
           </Alert>
-          <div className="mt-4 flex justify-center">
-            <img
-              src={`data:image/png;base64,${wsStatus.qrCode}`}
-              alt="WhatsApp QR Code"
-              className="h-64 w-64"
-            />
+          
+          <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg border border-gray-200">
+            <div className="p-2 bg-white rounded">
+              <img
+                src={qrCodeUrl}
+                alt="WhatsApp QR Code"
+                className="h-64 w-64"
+                onError={(e) => {
+                  console.error('Failed to load QR code image');
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgZmlsbD0iI2YzZjRmNSIvPjxwYXRoIGQ9Ik0xMiAyQzYuNDc3IDIgMiA2LjQ3NyAyIDEyczQuNDc3IDEwIDEwIDEwIDEwLTQuNDc3IDEwLTEwUzE3LjUyMyAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4em0wLTE0Yy0zLjMxIDAtNiAyLjY5LTYgNnMyLjY5IDYgNiA2IDYtMi42OSA2LTYtMi42OS02LTYtNnptLTEgMTBoMnYyaC0ydi0yem0wLTRoMnY2aC0ydi02eiIgZmlsbD0iI2Q5MDAwMCIvPjwvc3ZnPg=';
+                }}
+              />
+            </div>
+            <p className="mt-4 text-sm text-gray-500 text-center">
+              Scan this QR code with your WhatsApp mobile app to connect
+            </p>
           </div>
         </CardContent>
         <CardFooter className="flex gap-2">

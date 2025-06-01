@@ -104,11 +104,30 @@ export class WebSocketService extends EventEmitter {
     this.ws.onmessage = (event) => {
       try {
         const message: WSMessage = JSON.parse(event.data);
+        
+        // Special handling for QR code messages
+        if (message.type === 'whatsapp:qr') {
+          debug('Received QR code message', {
+            qrLength: message.data?.qr?.length,
+            qrStart: message.data?.qr?.substring(0, 20),
+            size: event.data.length
+          });
+          
+          // Ensure we have a valid QR code
+          if (!message.data?.qr) {
+            debugError('Received invalid QR code message:', message);
+            return;
+          }
+          
+          // Emit the QR code data directly
+          this.emit('whatsapp:qr', { qr: message.data.qr });
+          return;
+        }
+        
+        // Handle other message types
         debug('Received message', {
           type: message.type,
-          data: message.type === 'whatsapp:qr' 
-            ? { qrLength: message.data.qr?.length, qrStart: message.data.qr?.slice(0, 20) }
-            : message.data,
+          data: message.data,
           size: event.data.length,
           readyState: this.ws?.readyState
         });
