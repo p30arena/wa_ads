@@ -177,6 +177,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               throw new Error('WhatsApp client is not connected');
             }
 
+            await options.whatsappService.syncContacts();
             let contacts = await options.whatsappService.getContacts();
             
             // Apply search filter if search term is provided
