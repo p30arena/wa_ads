@@ -163,6 +163,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           method: 'get',
           input: z.object({
             search: z.string().optional(),
+            forceSync: z.string().optional().transform(s => s === 'true'),
             page: z.string().transform(s => Number(s)).optional().default("1"),
             pageSize: z.string().transform(s => Number(s)).optional().default("20"),
           }),
@@ -177,7 +178,12 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
               throw new Error('WhatsApp client is not connected');
             }
 
-            await options.whatsappService.syncContacts();
+            // Only sync contacts if explicitly requested or if we don't have any contacts yet
+            const currentContacts = await options.whatsappService.getContacts();
+            if (input.forceSync || currentContacts.length === 0) {
+              await options.whatsappService.syncContacts();
+            }
+            
             let contacts = await options.whatsappService.getContacts();
             
             // Apply search filter if search term is provided
