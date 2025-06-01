@@ -162,6 +162,7 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
         contacts: e.build({
           method: 'get',
           input: z.object({
+            search: z.string().optional(),
             page: z.string().transform(s => Number(s)).optional().default("1"),
             pageSize: z.string().transform(s => Number(s)).optional().default("20"),
           }),
