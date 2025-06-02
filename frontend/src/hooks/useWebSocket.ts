@@ -5,8 +5,12 @@ import { whatsappApi } from '@/services/api';
 interface WhatsAppStatus {
   connected: boolean;
   qrCode: string | null;
-  initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout';
+  hasQRCode?: boolean; // For backward compatibility
+  qrCodeLength?: number; // For backward compatibility
+  initializationStatus: 'none' | 'initializing' | 'ready' | 'error' | 'timeout' | 'waiting_for_qr' | 'resetting';
   initializationError: string | null;
+  timestamp?: number;
+  isResetting?: boolean;
 }
 
 interface UseWebSocketReturn {
@@ -14,6 +18,7 @@ interface UseWebSocketReturn {
   isConnected: boolean;
   sendMessage: (type: WSEventType, data: any) => void;
   retryWhatsAppConnection: () => void;
+  updateStatus: (status: Partial<WhatsAppStatus>) => void;
 }
 
 // Derive WebSocket URL from API URL
@@ -27,6 +32,7 @@ export function useWebSocket(): UseWebSocketReturn {
     qrCode: null,
     initializationStatus: 'none',
     initializationError: null,
+    isResetting: false,
   });
 
   // Log WebSocket events in development
@@ -34,6 +40,28 @@ export function useWebSocket(): UseWebSocketReturn {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[WebSocket] ${event}:`, data || '');
     }
+  }, []);
+  
+  // Update status based on state updates
+  const updateStatusFromState = useCallback((state: any) => {
+    setStatus(prev => {
+      // Only update if something has changed to prevent unnecessary re-renders
+      if (
+        prev.connected !== state.connected ||
+        prev.qrCode !== state.qrCode ||
+        prev.initializationStatus !== state.initializationStatus ||
+        prev.initializationError !== state.initializationError
+      ) {
+        return {
+          ...prev,
+          connected: state.connected || false,
+          qrCode: state.qrCode || null,
+          initializationStatus: state.initializationStatus || 'none',
+          initializationError: state.initializationError || null
+        };
+      }
+      return prev;
+    });
   }, []);
 
   useEffect(() => {
@@ -92,37 +120,21 @@ export function useWebSocket(): UseWebSocketReturn {
         startsWith: qrCode.substring(0, 20)
       });
 
-      setStatus((prev) => {
-        // Only update if QR code is different
-        if (prev.qrCode === qrCode) {
-          console.log('[useWebSocket] QR code unchanged, skipping update');
-          return prev;
-        }
-
-
-        const newStatus: WhatsAppStatus = {
-          ...prev,
-          qrCode: qrCode,
-          connected: false, // Reset connected state when new QR code arrives
-          initializationStatus: 'initializing',
-          initializationError: null
-        };
-
-        console.log('[useWebSocket] Updated status with new QR code');
-        return newStatus;
+      updateStatusFromState({
+        qrCode,
+        connected: false,
+        initializationStatus: 'initializing',
+        initializationError: null
       });
     });
 
     wsService.on('whatsapp:state', (data) => {
       logEvent('WhatsApp State', data);
-      setStatus((prev) => {
-        const newStatus: WhatsAppStatus = {
-          ...prev,
-          connected: data.connected,
-          initializationStatus: data.initializationStatus as WhatsAppStatus['initializationStatus'],
-          initializationError: data.initializationError
-        };
-        return newStatus;
+      updateStatusFromState({
+        connected: data.connected,
+        qrCode: data.qrCode,
+        initializationStatus: data.initializationStatus || (data.connected ? 'ready' : 'error'),
+        initializationError: data.initializationError || (data.connected ? null : 'Not connected to WhatsApp')
       });
     });
 
@@ -185,21 +197,26 @@ export function useWebSocket(): UseWebSocketReturn {
   }, [ws, logEvent]);
 
   const retryWhatsAppConnection = useCallback(async () => {
-    logEvent('Retrying WhatsApp Connection');
+    // Don't retry if we're in the middle of a reset
+    if (status.isResetting) {
+      logEvent('Skipping retry during reset');
+      return;
+    }
     
-    // Reset status to show loading state
+    logEvent('Retrying WhatsApp connection');
     setStatus(prev => ({
       ...prev,
       initializationStatus: 'initializing',
       initializationError: null,
-      qrCode: null
+      qrCode: null,
+      isResetting: false,
     }));
 
     try {
       // Try to force a reconnection if not connected
       if (!ws?.isConnected()) {
         console.warn('[WebSocket] Not connected, attempting to reconnect...');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
       // Send retry message if connected, otherwise the message will be queued
@@ -220,12 +237,20 @@ export function useWebSocket(): UseWebSocketReturn {
         initializationError: error instanceof Error ? error.message : 'Failed to retry connection'
       }));
     }
-  }, [ws, logEvent]);
+  }, [ws, logEvent, status.isResetting]);
+
+  const updateStatus = useCallback((updates: Partial<WhatsAppStatus>) => {
+    setStatus(prev => ({
+      ...prev,
+      ...updates
+    }));
+  }, []);
 
   return {
     status,
     isConnected: status.connected,
     sendMessage,
-    retryWhatsAppConnection
+    retryWhatsAppConnection,
+    updateStatus
   };
 }

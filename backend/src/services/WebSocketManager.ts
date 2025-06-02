@@ -30,13 +30,71 @@ export class WebSocketManager extends EventEmitter {
     getQRCode: () => string | null;
     isConnected: () => boolean;
     initialize: () => Promise<void>;
+    handleRetry?: () => Promise<void>;
   }) {
     debug('Setting WhatsApp service');
     this.whatsAppService = service;
+    
+    // Broadcast the current WhatsApp state to all connected clients
+    this.broadcastWhatsAppState();
+  }
+  
+  /**
+   * Broadcasts the current WhatsApp state to all connected clients
+   * or to a specific client if ws is provided
+   */
+  public broadcastWhatsAppState(ws?: WebSocket) {
+    if (!this.whatsAppService) {
+      const state = {
+        connected: false,
+        qrCode: null,
+        initializationStatus: 'error' as const,
+        initializationError: 'WhatsApp service not available',
+        timestamp: Date.now()
+      };
+      
+      if (ws) {
+        this.sendTo(ws, 'whatsapp:state', state);
+      } else {
+        this.broadcast('whatsapp:state', state);
+      }
+      return;
+    }
+    
+    const state = {
+      connected: this.whatsAppService.isConnected(),
+      qrCode: this.whatsAppService.getQRCode(),
+      initializationStatus: this.whatsAppService.isConnected() ? 'ready' as const : 'initializing' as const,
+      initializationError: null,
+      timestamp: Date.now()
+    };
+    
+    debug('Broadcasting WhatsApp state:', state);
+    
+    if (ws) {
+      this.sendTo(ws, 'whatsapp:state', state);
+    } else {
+      this.broadcast('whatsapp:state', state);
+    }
   }
 
-  constructor(server: Server) {
+  constructor(server?: Server) {
     super();
+    if (server) {
+      this.wss = new WebSocket.Server({ server });
+      this.setupWebSocket();
+      this.startStatsReporting();
+    }
+  }
+
+  /**
+   * Updates the HTTP server reference
+   * @param server The new HTTP server instance
+   */
+  public updateServer(server: Server) {
+    if (this.wss) {
+      this.wss.close();
+    }
     this.wss = new WebSocket.Server({ server });
     this.setupWebSocket();
     this.startStatsReporting();
@@ -55,26 +113,8 @@ export class WebSocketManager extends EventEmitter {
         clientsConnected: this.clients.size
       });
 
-      // Send initial WhatsApp state to the client
-      if (this.whatsAppService) {
-        const isConnected = this.whatsAppService.isConnected();
-        const currentQR = this.whatsAppService.getQRCode();
-
-        debug('Sending initial WhatsApp state to client:', {
-          isConnected,
-          hasQRCode: Boolean(currentQR)
-        });
-
-        // Send current QR code if available and not connected
-        if (currentQR && !isConnected) {
-          this.sendTo(ws, 'whatsapp:qr', { qr: currentQR });
-        }
-
-        // Send connected state if connected
-        if (isConnected) {
-          this.sendTo(ws, 'whatsapp:ready', { timestamp: new Date() });
-        }
-      }
+          // Send initial WhatsApp state to the client
+      this.broadcastWhatsAppState(ws);
 
       ws.on('message', (message: string) => {
         try {

@@ -9,7 +9,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 export function WhatsAppStatus() {
   const [isResetting, setIsResetting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
-  const { status: wsStatus, retryWhatsAppConnection } = useWebSocket();
+  const { status: wsStatus, retryWhatsAppConnection, updateStatus } = useWebSocket();
 
   const handleRetryInitialization = async () => {
     try {
@@ -23,13 +23,38 @@ export function WhatsAppStatus() {
   };
 
   const handleResetSession = async () => {
+    if (!window.confirm('Are you sure you want to reset the WhatsApp session? This will log you out and require scanning the QR code again.')) {
+      return;
+    }
+    
     try {
       setIsResetting(true);
+      
+      // Update status to show resetting state
+      updateStatus({
+        ...wsStatus,
+        isResetting: true,
+        initializationStatus: 'resetting',
+        initializationError: null,
+        qrCode: null,
+      });
+      
+      // Call the reset endpoint
       await whatsappApi.resetSession();
-      window.location.reload();
+      
+      // Wait a moment for the backend to process the reset
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Trigger a reconnection to get the new QR code
+      retryWhatsAppConnection();
     } catch (err) {
       console.error('Error resetting WhatsApp session:', err);
-      alert('Failed to reset WhatsApp session.');
+      updateStatus({
+        ...wsStatus,
+        isResetting: false,
+        initializationStatus: 'error',
+        initializationError: err instanceof Error ? err.message : 'Failed to reset session'
+      });
     } finally {
       setIsResetting(false);
     }
@@ -215,6 +240,12 @@ export function WhatsAppStatus() {
     );
   }
 
+  const showRetryButton = !wsStatus.connected && 
+    wsStatus.initializationStatus !== 'initializing' && 
+    wsStatus.initializationStatus !== 'resetting' &&
+    !wsStatus.qrCode &&
+    !isResetting;
+
   // Default state when not connected and no specific status
   return (
     <Card className="max-w-md mx-auto">
@@ -224,15 +255,21 @@ export function WhatsAppStatus() {
       <CardContent>
         <Alert variant="destructive">
           <AlertDescription>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-red-500" />
-              Not connected to WhatsApp
+            <div className="space-y-2">
+              {(wsStatus.initializationStatus === 'initializing' || wsStatus.initializationStatus === 'resetting') && (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {wsStatus.initializationStatus === 'resetting' 
+                    ? 'Resetting WhatsApp session...' 
+                    : 'Connecting to WhatsApp...'}
+                </div>
+              )}
+              {wsStatus.initializationError && (
+                <div className="text-sm text-red-700 dark:text-red-300">
+                  {wsStatus.initializationError}
+                </div>
+              )}
             </div>
-            {wsStatus.initializationError && (
-              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                {wsStatus.initializationError}
-              </div>
-            )}
           </AlertDescription>
         </Alert>
       </CardContent>

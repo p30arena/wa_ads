@@ -345,15 +345,89 @@ export class WhatsAppService extends EventEmitter {
       throw new Error('WhatsApp client is not ready');
     }
 
+    console.log('[WhatsAppService] Starting contact sync...');
+    const startTime = Date.now();
+    
     try {
-      const contacts = await this.client.getContacts();
-      this.contacts.clear();
-
-      for (const contact of contacts) {
-        await this.updateContact(contact);
+      // Get address book contacts
+      console.log('[WhatsAppService] Fetching address book contacts...');
+      const addressBookContacts = await this.client.getContacts();
+      console.log(`[WhatsAppService] Found ${addressBookContacts.length} address book contacts`);
+      
+      // Process address book contacts in batches
+      const batchSize = 50;
+      console.log(`[WhatsAppService] Processing address book contacts in batches of ${batchSize}...`);
+      
+      for (let i = 0; i < addressBookContacts.length; i += batchSize) {
+        const batch = addressBookContacts.slice(i, i + batchSize);
+        console.log(`[WhatsAppService] Processing address book contacts batch ${i / batchSize + 1}/${Math.ceil(addressBookContacts.length / batchSize)}`);
+        
+        await Promise.all(batch.map(contact => 
+          this.updateContact(contact).catch((error: Error) => 
+            console.warn(`[WhatsAppService] Error updating contact ${contact.id?._serialized || 'unknown'}:`, error.message)
+          )
+        ));
       }
-
-      console.log(`[WhatsAppService] Synced ${this.contacts.size} contacts`);
+      
+      // Get chats to find additional contacts
+      console.log('[WhatsAppService] Fetching chats...');
+      const chats = await this.client.getChats();
+      console.log(`[WhatsAppService] Found ${chats.length} chats`);
+      
+      // Process chats in batches
+      console.log(`[WhatsAppService] Processing chats in batches of ${batchSize}...`);
+      
+      for (let i = 0; i < chats.length; i += batchSize) {
+        const batch = chats.slice(i, i + batchSize);
+        console.log(`[WhatsAppService] Processing chat batch ${i / batchSize + 1}/${Math.ceil(chats.length / batchSize)}`);
+        
+        await Promise.all(batch.map(async chat => {
+          try {
+            if (chat.isGroup) {
+              // For groups, get all participants
+              const groupChat = chat as any as ExtendedChat;
+              if (groupChat.participants) {
+                await Promise.all(groupChat.participants.map(async participant => {
+                  if (participant?.id?._serialized) {
+                    try {
+                      const contact = await this.client.getContactById(participant.id._serialized);
+                      if (contact) {
+                        await this.updateContact(contact);
+                      }
+                    } catch (error: any) {
+                      const errorMessage = error instanceof Error ? error.message : String(error);
+                      console.warn(`[WhatsAppService] Error getting contact for participant ${participant.id._serialized}:`, errorMessage);
+                    }
+                  }
+                }));
+              }
+            } else {
+              // For individual chats, get the contact
+              const contactId = chat.id._serialized.includes('@c.us') 
+                ? chat.id._serialized 
+                : `${chat.id._serialized}@c.us`;
+                
+              if (contactId) {
+                try {
+                  const contact = await this.client.getContactById(contactId);
+                  if (contact) {
+                    await this.updateContact(contact);
+                  }
+                } catch (error) {
+                  const errorMessage = error instanceof Error ? error.message : String(error);
+                  console.warn(`[WhatsAppService] Error getting contact for chat ${chat.id._serialized}:`, errorMessage);
+                }
+              }
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`[WhatsAppService] Error processing chat ${chat.id._serialized}:`, errorMessage);
+          }
+        }));
+      }
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`[WhatsAppService] Contact sync completed in ${duration}s. Total contacts: ${this.contacts.size}`);
       return this.contacts.size;
     } catch (error) {
       console.error('[WhatsAppService] Error syncing contacts:', error);

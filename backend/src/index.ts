@@ -122,41 +122,65 @@ const startServer = async () => {
     await prisma.$connect();
     console.log('Database connection established');
 
-    const wa: { whatsappService: WhatsAppService | null, wsManager: WebSocketManager | null, adJobService: AdJobService | null } = { whatsappService: null, wsManager: null, adJobService: null };
-    // Create API routes
-    const routing = createRoutes(wa);
+    // Create service instances first (without server reference)
+    wsManager = new WebSocketManager();
+    whatsappService = new WhatsAppService(wsManager, { currentVersion });
+    const adJobService = new AdJobService(whatsappService, wsManager);
+    jobSchedulerService = new JobSchedulerService(adJobService);
+    
+    // Ensure services are properly initialized
+    if (!whatsappService || !wsManager) {
+      throw new Error('Failed to initialize required services');
+    }
+    
+    // Create routes with all services
+    const routing = createRoutes({
+      whatsappService,
+      wsManager
+    });
+    
+    // Create the server with the routes
     const { app, servers } = await createZodServer(config, routing);
     httpServer = servers[0];
+    
+    // Initialize WebSocket server with the HTTP server
+    wsManager.updateServer(httpServer);
 
-    // Initialize WebSocket Manager
-    wsManager = new WebSocketManager(httpServer);
-
-    // Initialize WhatsApp Service
-    whatsappService = new WhatsAppService(wsManager, { currentVersion });
-
-    // Initialize AdJobService
-    const adJobService = new AdJobService(whatsappService, wsManager);
-
-    // Initialize JobSchedulerService
-    jobSchedulerService = new JobSchedulerService(adJobService);
-
-    // Store references for routes
-    wa.whatsappService = whatsappService;
-    wa.wsManager = wsManager;
-    wa.adJobService = adJobService;
-
-    // Initialize WhatsApp client
-    await whatsappService.initialize().then(() => 
-      console.log('WhatsApp client initialized'));
-      
-    // Initialize job scheduler
-    await jobSchedulerService.initialize().then(() =>
-      console.log('Job scheduler initialized'));
-      
+    // Start the server immediately
     if (config.http) {
       console.log('Server is running on port', config.http.listen);
     } else {
       console.log('Server is running');
+    }
+    
+    // Initialize WhatsApp client in the background (non-blocking)
+    if (whatsappService) {
+      whatsappService.initialize()
+        .then(() => {
+          console.log('WhatsApp client initialized');
+          // Initialize job scheduler after WhatsApp is ready
+          if (jobSchedulerService) {
+            return jobSchedulerService.initialize()
+              .then(() => console.log('Job scheduler initialized'));
+          }
+        })
+        .catch(error => {
+          console.error('Failed to initialize WhatsApp client:', error);
+          // Even if WhatsApp fails, we keep the server running
+          if (jobSchedulerService) {
+            jobSchedulerService.initialize()
+              .then(() => console.log('Job scheduler initialized (WhatsApp not available)'))
+              .catch(err => console.error('Failed to initialize job scheduler:', err));
+          }
+        });
+    } else {
+      console.warn('WhatsApp service not available, skipping initialization');
+      // Still try to initialize job scheduler if possible
+      if (jobSchedulerService) {
+        jobSchedulerService.initialize()
+          .then(() => console.log('Job scheduler initialized (WhatsApp not available)'))
+          .catch(err => console.error('Failed to initialize job scheduler:', err));
+      }
     }
   } catch (error) {
     console.error('Failed to start server:', error);

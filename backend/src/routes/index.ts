@@ -2,7 +2,7 @@ import { Routing, defaultEndpointsFactory, Middleware } from 'express-zod-api';
 import { z } from 'zod';
 import prisma from '../config/prisma';
 import { WhatsAppService } from '../services/WhatsAppService';
-import { whatsappEndpoints } from '../controllers/WhatsAppController';
+import { createWhatsAppEndpoints } from '../controllers/WhatsAppController';
 import { WebSocketManager } from '../services/WebSocketManager';
 import { AdJobService } from '../services/AdJobService';
 import { WSEventType } from 'wa-shared';
@@ -141,7 +141,7 @@ type Options = {
 };
 
 // Create endpoints
-export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsManager: WebSocketManager | null }): Routing => {
+export const createRoutes = (wa: { whatsappService: WhatsAppService; wsManager: WebSocketManager }): Routing => {
   // Initialize AdJobService if WhatsAppService and WebSocketManager are available
   const adJobService = wa.whatsappService && wa.wsManager ? new AdJobService(wa.whatsappService, wa.wsManager) : null;
   
@@ -155,6 +155,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
     },
   }));
 
+  // Create endpoints with the WhatsApp service
+  const whatsappEndpoints = createWhatsAppEndpoints(wa.whatsappService!);
+
   const routing: Routing = {
     api: {
       whatsapp: {
@@ -163,9 +166,9 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
           method: 'get',
           input: z.object({
             search: z.string().optional(),
-            forceSync: z.string().optional().transform(s => s === 'true'),
-            page: z.string().transform(s => Number(s)).optional().default("1"),
-            pageSize: z.string().transform(s => Number(s)).optional().default("20"),
+            forceSync: z.string().optional().transform(s => s === 'true').default('false'),
+            page: z.string().transform(s => Math.max(1, Number(s) || 1)).default('1'),
+            pageSize: z.string().transform(s => Math.min(100, Math.max(1, Number(s) || 20))).default('20'),
           }),
           output: z.object({
             items: z.array(contactSchema),
@@ -173,30 +176,55 @@ export const createRoutes = (wa: { whatsappService: WhatsAppService | null, wsMa
             page: z.number(),
             pageSize: z.number(),
           }),
-          handler: async ({ input, options }) => {
+          handler: async ({ input, options, logger }) => {
             if (!options.whatsappService.isConnected()) {
               throw new Error('WhatsApp client is not connected');
             }
 
-            // Only sync contacts if explicitly requested or if we don't have any contacts yet
-            const currentContacts = await options.whatsappService.getContacts();
-            if (input.forceSync || currentContacts.length === 0) {
+            logger.debug('Fetching contacts', { 
+              search: input.search ? '***' : 'none',
+              forceSync: input.forceSync,
+              page: input.page,
+              pageSize: input.pageSize
+            });
+
+            // Only sync contacts if explicitly requested with forceSync=true
+            if (input.forceSync) {
+              logger.debug('Force syncing contacts...');
               await options.whatsappService.syncContacts();
             }
             
+            // Get contacts from cache
             let contacts = await options.whatsappService.getContacts();
+            
+            // If no contacts and we didn't just sync, try syncing once
+            if (contacts.length === 0 && !input.forceSync) {
+              logger.debug('No contacts found, performing initial sync...');
+              await options.whatsappService.syncContacts();
+              contacts = await options.whatsappService.getContacts();
+            }
             
             // Apply search filter if search term is provided
             if (input.search) {
               const searchTerm = input.search.toLowerCase();
               contacts = contacts.filter(contact => 
-                contact.name.toLowerCase().includes(searchTerm) ||
-                contact.phoneNumber.includes(searchTerm)
+                (contact.name?.toLowerCase().includes(searchTerm) ||
+                contact.phoneNumber?.includes(searchTerm))
               );
             }
             
+            // Calculate pagination
+            const total = contacts.length;
             const startIndex = (input.page - 1) * input.pageSize;
-            const endIndex = startIndex + input.pageSize;
+            const endIndex = Math.min(startIndex + input.pageSize, total);
+            const paginatedContacts = contacts.slice(startIndex, endIndex);
+            
+            logger.debug('Returning contacts', { 
+              total,
+              returned: paginatedContacts.length,
+              page: input.page,
+              pageSize: input.pageSize
+            });
             
             return {
               items: contacts.slice(startIndex, endIndex),

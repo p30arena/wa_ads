@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -12,8 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { ContactFilter } from 'wa-shared';
 import { whatsappApi } from '@/services/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserIcon, UsersIcon } from 'lucide-react';
+import { UserIcon, UsersIcon, Search } from 'lucide-react';
 import { CustomPagination } from '../ui/custom-pagination';
+import { Input } from '@/components/ui/input';
+import { debounce } from 'lodash';
 
 interface ContactListProps {
   filter: ContactFilter;
@@ -33,20 +36,30 @@ interface ContactItem {
   updatedAt?: string | Date;
 }
 
-export function ContactList({ filter, onPageChange }: ContactListProps) {
-  interface ContactResponse {
-    items: ContactItem[];
-    total: number;
-    page: number;
-    pageSize: number;
-  }
+export function ContactList({ filter: initialFilter, onPageChange }: ContactListProps) {
+  const [searchTerm, setSearchTerm] = useState(initialFilter.search || '');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  
+  // Memoize the filter to prevent unnecessary re-renders
+  const filter = useMemo(() => ({
+    ...initialFilter,
+    search: debouncedSearchTerm,
+  }), [initialFilter, debouncedSearchTerm]);
 
-  const isMyContact = (contact: ContactItem) => {
-    // This is a simplified check - you might need to adjust based on your actual data structure
-    return false; // Simplified for now
+  // Debounce search term updates
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
   };
 
-  const { data, isLoading, error } = useQuery<ContactResponse>({
+  const { data, isLoading, error, isFetching } = useQuery({
     queryKey: ['contacts', filter],
     queryFn: async () => {
       const response = await whatsappApi.getContacts(
@@ -56,21 +69,16 @@ export function ContactList({ filter, onPageChange }: ContactListProps) {
       );
       
       // Safely transform the response items to ContactItem
-      const items = response.items.map((item) => {
-        // Handle both Contact and ContactGroup types
-        const isGroup = 'participants' in item; // Simple check to determine if it's a group
-        
-        return {
-          id: item.id,
-          name: item.name || (isGroup ? 'Unnamed Group' : 'Unnamed Contact'),
-          phoneNumber: isGroup ? undefined : (item as any).phoneNumber,
-          status: isGroup ? undefined : (item as any).status,
-          lastSeen: isGroup ? undefined : (item as any).lastSeen,
-          profilePicUrl: (item as any).profilePicUrl,
-          isGroup,
-          isMyContact: false, // Default value, adjust as needed
-        };
-      });
+      const items = response.items.map((item) => ({
+        id: item.id,
+        name: item.name || ('participants' in item ? 'Unnamed Group' : 'Unnamed Contact'),
+        phoneNumber: 'participants' in item ? undefined : (item as any).phoneNumber,
+        status: 'participants' in item ? undefined : (item as any).status,
+        lastSeen: 'participants' in item ? undefined : (item as any).lastSeen,
+        profilePicUrl: (item as any).profilePicUrl,
+        isGroup: 'participants' in item,
+        isMyContact: false,
+      }));
       
       return {
         items,
@@ -94,6 +102,19 @@ export function ContactList({ filter, onPageChange }: ContactListProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search contacts..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            disabled={isLoading || isFetching}
+          />
+        </div>
+      </div>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -106,7 +127,7 @@ export function ContactList({ filter, onPageChange }: ContactListProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {(isLoading || isFetching) ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
@@ -129,34 +150,42 @@ export function ContactList({ filter, onPageChange }: ContactListProps) {
                   </TableCell>
                 </TableRow>
               ))
-            ) : transformedData?.items.map((item: ContactItem) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={item.profilePicUrl} />
-                      <AvatarFallback>
-                        {item.name?.slice(0, 2).toUpperCase() || '??'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">
-                        {item.name || 'Unnamed Contact'}
+            ) : transformedData?.items?.length ? (
+              transformedData.items.map((item: ContactItem) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={item.profilePicUrl} />
+                        <AvatarFallback>
+                          {item.name?.slice(0, 2).toUpperCase() || '??'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">
+                          {item.name || 'Unnamed Contact'}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell>{item.phoneNumber || 'N/A'}</TableCell>
-                <TableCell>{item.status || 'No status'}</TableCell>
-                <TableCell>
-                  {item.lastSeen
-                    ? new Date(item.lastSeen).toLocaleDateString()
-                    : 'Unknown'}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={item.isMyContact ? 'default' : 'secondary'}>
-                    {item.isMyContact ? 'Contact' : 'Non-contact'}
-                  </Badge>
+                  </TableCell>
+                  <TableCell>{item.phoneNumber || 'N/A'}</TableCell>
+                  <TableCell>{item.status || 'No status'}</TableCell>
+                  <TableCell>
+                    {item.lastSeen
+                      ? new Date(item.lastSeen).toLocaleDateString()
+                      : 'Unknown'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={item.isMyContact ? 'default' : 'secondary'}>
+                      {item.isMyContact ? 'Contact' : 'Non-contact'}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="h-24 text-center">
+                  No contacts found
                 </TableCell>
               </TableRow>
             ))}
